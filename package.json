@@ -1,0 +1,61 @@
+{
+  "name": "tg-mtproto-cli",
+  "version": "0.1.0",
+  "description": "CLI for Telegram via MTProto — chats, messages, media download, multi-account",
+  "type": "module",
+  "bin": {
+    "tg": "./dist/main.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "start": "node dist/main.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "format": "biome format --write src",
+    "prepublishOnly": "npm run lint && npm run build"
+  },
+  "keywords": [
+    "telegram",
+    "mtproto",
+    "cli",
+    "tg",
+    "mtcute",
+    "chat",
+    "messages",
+    "telegram-client"
+  ],
+  "author": "cyberash",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cyberash-dev/tg-mtproto-cli.git"
+  },
+  "homepage": "https://github.com/cyberash-dev/tg-mtproto-cli#readme",
+  "bugs": {
+    "url": "https://github.com/cyberash-dev/tg-mtproto-cli/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@mtcute/node": "0.28.1",
+    "chalk": "5.6.2",
+    "cli-progress": "3.12.0",
+    "cli-table3": "0.6.5",
+    "commander": "14.0.3",
+    "cross-keychain": "1.1.0",
+    "qr": "0.5.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@types/cli-progress": "3.11.6",
+    "@types/node": "25.3.0",
+    "tsdown": "0.20.3",
+    "typescript": "5.9.3"
+  }
+}

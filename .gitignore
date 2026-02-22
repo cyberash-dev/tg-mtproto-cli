@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.session
+.DS_Store
+*.jpg
+*.png
+*.mp4
+*.ogg
+*.mp3
