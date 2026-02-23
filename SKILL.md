@@ -11,10 +11,19 @@ CLI tool for reading Telegram data directly via MTProto protocol. No Bot API, no
 
 | Binary | Install | Purpose |
 |---|---|---|
-| `tg` | `npm install -g tg-mtproto-cli` | Core CLI (source: [npmjs.com/package/tg-mtproto-cli](https://www.npmjs.com/package/tg-mtproto-cli)) |
+| `tg` | `npm install -g tg-mtproto-cli` | Core CLI |
 | `jq` (optional) | `brew install jq` or `apt install jq` | JSON filtering in workflow examples |
 
-Verify installation: `tg --version`.
+Source and provenance:
+- npm: [npmjs.com/package/tg-mtproto-cli](https://www.npmjs.com/package/tg-mtproto-cli)
+- GitHub: [github.com/cyberash-dev/tg-mtproto-cli](https://github.com/cyberash-dev/tg-mtproto-cli)
+
+Verify after install:
+
+```bash
+tg --version
+npm ls -g tg-mtproto-cli
+```
 
 ## Required credentials
 
@@ -36,11 +45,11 @@ Credentials are entered interactively via `tg auth`. No environment variables re
 
 ## Guardrails
 
-- This skill is **read-only** for Telegram data (no sending messages, no modifying chats).
+- The CLI is **read-only by design** — it has no commands to send messages, create chats, modify groups, or perform any write operations on Telegram. The only write targets are local: session files and downloaded media.
 - `tg download` writes files only to the explicitly specified `--out` directory or cwd.
-- Session files contain sensitive auth material — do not read, copy, or expose them.
+- Session files contain sensitive auth material — do not read, copy, or expose `~/.tg-mtproto-cli/sessions/` contents.
 - Do not log or display `api_id` / `api_hash` values.
-- If `tg auth` is needed, inform the user — it requires interactive input (phone, OTP).
+- If `tg auth` is needed, inform the user — it requires interactive input (phone, OTP) and cannot be automated.
 
 ## Chat identification
 
