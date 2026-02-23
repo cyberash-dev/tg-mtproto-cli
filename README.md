@@ -1,5 +1,7 @@
 # tg-mtproto-cli
 
+![banner](.github/profile-banner.jpg)
+
 CLI for Telegram via MTProto. Direct access to chats, messages and media — no Bot API, no limits.
 
 ## Features
