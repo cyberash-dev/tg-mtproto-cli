@@ -7,3 +7,5 @@ dist/
 *.mp4
 *.ogg
 *.mp3
+!.github/*.jpg
+!.github/*.png
