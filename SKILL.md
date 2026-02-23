@@ -1,12 +1,46 @@
+---
+name: tg-cli
+description: Interact with Telegram via the tg CLI (MTProto). Use when the user asks to read Telegram chats, fetch messages, download media, manage Telegram accounts, or automate Telegram data extraction.
+---
+
 # tg — Telegram CLI via MTProto
 
 CLI tool for reading Telegram data directly via MTProto protocol. No Bot API, no limits.
 
-## Prerequisites
+## Required binaries
 
-The CLI must be authenticated before use. If `tg chats` returns exit code 2, run `tg auth` first.
+| Binary | Install | Purpose |
+|---|---|---|
+| `tg` | `npm install -g tg-mtproto-cli` | Core CLI (source: [npmjs.com/package/tg-mtproto-cli](https://www.npmjs.com/package/tg-mtproto-cli)) |
+| `jq` (optional) | `brew install jq` or `apt install jq` | JSON filtering in workflow examples |
 
-API credentials (`api_id`, `api_hash`) are required on first auth — get them at https://my.telegram.org/apps.
+Verify installation: `tg --version`.
+
+## Required credentials
+
+| Credential | How to obtain | Storage |
+|---|---|---|
+| Telegram `api_id` + `api_hash` | [my.telegram.org/apps](https://my.telegram.org/apps) | System keychain (macOS Keychain / Windows Credential Vault / Linux Secret Service) |
+| Phone number + OTP code | Interactive prompt during `tg auth` | Not persisted; used once for session creation |
+
+Credentials are entered interactively via `tg auth`. No environment variables required.
+
+## Runtime surface
+
+| Resource | Access | Details |
+|---|---|---|
+| Network | Outbound TCP to Telegram DC servers | MTProto protocol, required for all commands |
+| Session files | Read/write `~/.tg-mtproto-cli/sessions/*.session` | SQLite databases with auth keys; created by `tg auth` |
+| System keychain | Read/write | Stores `api_id`, `api_hash`, account metadata, default account |
+| Filesystem | Write (only `tg download`) | Saves media to `--out` dir or current directory |
+
+## Guardrails
+
+- This skill is **read-only** for Telegram data (no sending messages, no modifying chats).
+- `tg download` writes files only to the explicitly specified `--out` directory or cwd.
+- Session files contain sensitive auth material — do not read, copy, or expose them.
+- Do not log or display `api_id` / `api_hash` values.
+- If `tg auth` is needed, inform the user — it requires interactive input (phone, OTP).
 
 ## Chat identification
 
@@ -61,7 +95,7 @@ Downloads the media attachment from a specific message. Get message IDs from `tg
 ### Account management
 
 ```bash
-tg auth                          # authenticate
+tg auth                          # authenticate (interactive)
 tg logout [alias]                # remove session
 tg accounts                      # list accounts
 tg accounts rename <old> <new>   # rename alias
@@ -144,7 +178,7 @@ tg messages @chat -n 10 --account personal
 |---|---|
 | 0 | Success |
 | 1 | Runtime error (invalid args, chat not found) |
-| 2 | Auth required (no account, expired session) |
+| 2 | Auth required (no account, expired session) — run `tg auth` |
 
 ## Troubleshooting
 
