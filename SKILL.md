@@ -1,6 +1,37 @@
 ---
 name: tg-cli
-description: Interact with Telegram via the tg CLI (MTProto). Use when the user asks to read Telegram chats, fetch messages, download media, manage Telegram accounts, or automate Telegram data extraction.
+description: >
+  Read-only Telegram CLI via MTProto. Lists chats, fetches messages,
+  downloads media, manages local accounts/sessions. Does not send
+  messages or modify Telegram data. Use when the user asks to read
+  Telegram chats, fetch messages, download media, or automate
+  Telegram data extraction.
+required_binaries:
+  - name: tg
+    package: tg-mtproto-cli
+    install: npm install -g tg-mtproto-cli
+    registry: https://www.npmjs.com/package/tg-mtproto-cli
+    source: https://github.com/cyberash-dev/tg-mtproto-cli
+  - name: jq
+    optional: true
+    install: brew install jq
+credentials:
+  - name: Telegram API credentials
+    fields: [api_id, api_hash]
+    obtain: https://my.telegram.org/apps
+    storage: system keychain (macOS Keychain / Windows Credential Vault / Linux Secret Service)
+    input: interactive prompt via `tg auth`
+  - name: Phone number + OTP
+    storage: not persisted
+    input: interactive prompt via `tg auth` (one-time, creates session)
+runtime_permissions:
+  network: outbound TCP to Telegram DC servers (MTProto protocol)
+  filesystem:
+    - read/write: ~/.tg-mtproto-cli/sessions/*.session (SQLite auth sessions)
+    - write: media files to --out dir or cwd (tg download only)
+  keychain: read/write account metadata and API credentials
+  shell: false
+  browser: false
 ---
 
 # tg — Telegram CLI via MTProto
