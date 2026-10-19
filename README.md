@@ -74,6 +74,14 @@ tg messages <chat> [options]
 
 `--after` accepts: `2026-02-22`, `2026-02-22T10:00`, `10:00` (today).
 
+Hidden links appear as `label (URL)` in terminal output. JSON preserves the original
+`text` and includes a `links` array for visible URLs and hidden destinations, including
+media captions. Extract destinations from the last 20 messages with:
+
+```bash
+tg messages @username -n 20 --json | jq -r '.[].links[].url'
+```
+
 ## Global flags
 
 | Flag | Description |

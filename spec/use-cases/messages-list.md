@@ -44,6 +44,7 @@ tg messages <chat> [-n <count>] [--all] [--topic <id>] [--after <datetime>]
     "chatId": -1001234567890,
     "senderName": "Иван Иванов",
     "text": "Привет! Как дела?",
+    "links": [],
     "date": "2026-02-22T10:15:00Z",
     "media": null,
     "replyToId": null,
@@ -51,6 +52,21 @@ tg messages <chat> [-n <count>] [--all] [--topic <id>] [--after <datetime>]
   }
 ]
 ```
+
+Скрытые и видимые URL сохраняются в `links`, включая ссылки в подписях к медиа.
+Например, для текста `See the runbook` со ссылкой на слове `runbook` поля имеют вид:
+
+```json
+{
+  "text": "See the runbook",
+  "links": [
+    { "kind": "text_link", "offset": 8, "length": 7, "text": "runbook", "url": "https://example.com/runbook" }
+  ]
+}
+```
+
+В терминале: `See the runbook (https://example.com/runbook)`. Полный контракт
+диапазонов и отображения описан в [Message](../entities/message.md).
 
 ## Основной сценарий
 

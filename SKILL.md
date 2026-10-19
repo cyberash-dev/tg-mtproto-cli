@@ -167,6 +167,7 @@ tg download @chat 42 --json
   "chatId": -1001234567890,
   "senderName": "John",
   "text": "Hello",
+  "links": [],
   "date": "2026-02-22T10:15:00.000Z",
   "media": { "type": "photo", "fileName": null, "mimeType": "image/jpeg", "size": 262525 },
   "replyToId": null,
@@ -176,7 +177,22 @@ tg download @chat 42 --json
 
 `media` is `null` when no attachment. `media.type`: `photo`, `video`, `document`, `audio`, `voice`, `sticker`.
 
+`text` stays unchanged. `links` contains visible (`url`) and hidden (`text_link`)
+URL entities from text or captions, or `[]` when none are present. Each entry has
+`kind`, UTF-16 `offset` and `length`, the label `text`, and the exact `url` target.
+Repeated occurrences are retained. Other formatting entities are omitted.
+Invalid link ranges fail with `Invalid link entity range in message #<id>: offset=<offset>, length=<length>`.
+Terminal output adds hidden destinations in parentheses unless the label already
+equals the URL; control characters in appended destinations are escaped.
+Displaying a destination does not open it.
+
 ## Common workflows
+
+### Extract visible and hidden link destinations
+
+```bash
+tg messages @chat -n 20 --json | jq -r '.[].links[].url'
+```
 
 ### Extract text from a chat since a date
 

@@ -1,13 +1,39 @@
-import { TelegramClient } from "@mtcute/node";
+import { type Message as MtcuteMessage, TelegramClient } from "@mtcute/node";
 import { encodeQR } from "qr";
 import type { Account } from "../domain/entities/account.js";
 import type { Chat, ChatType } from "../domain/entities/chat.js";
 import type { Media, MediaType } from "../domain/entities/media.js";
 import type { Message } from "../domain/entities/message.js";
+import type { MessageLink } from "../domain/entities/message-link.js";
 import type { Topic } from "../domain/entities/topic.js";
 import type { TelegramGateway } from "../domain/ports/telegram-gateway.js";
 
 type MessageMedia = NonNullable<Awaited<ReturnType<TelegramClient["getMessages"]>>[0]>["media"];
+
+function messageLinks(message: MtcuteMessage): MessageLink[] {
+  return message.entities.flatMap((entity): MessageLink[] => {
+    if (!entity.is("text_link") && !entity.is("url")) return [];
+    const { offset, length } = entity;
+    if (
+      !Number.isInteger(offset) ||
+      !Number.isInteger(length) ||
+      offset < 0 ||
+      length <= 0 ||
+      offset + length > message.text.length
+    ) {
+      throw new RangeError(`Invalid link entity range in message #${message.id}: offset=${offset}, length=${length}`);
+    }
+    return [
+      {
+        kind: entity.is("text_link") ? "text_link" : "url",
+        offset: entity.offset,
+        length: entity.length,
+        text: entity.text,
+        url: entity.is("text_link") ? entity.params.url : entity.text,
+      },
+    ];
+  });
+}
 
 function mapMediaTypeFromMtcute(media: NonNullable<MessageMedia>): MediaType | null {
   switch (media.type) {
@@ -57,6 +83,20 @@ function mapMedia(raw: MessageMedia): Media | null {
   }
 
   return { type: mediaType, fileName, mimeType, size };
+}
+
+function messageFromMtcute(message: MtcuteMessage): Message {
+  return {
+    id: message.id,
+    chatId: message.chat.id,
+    senderName: message.sender.displayName,
+    text: message.text || null,
+    links: messageLinks(message),
+    date: message.date,
+    media: mapMedia(message.media),
+    replyToId: message.replyToMessage?.id ?? null,
+    isOutgoing: message.isOutgoing,
+  };
 }
 
 const MIME_EXT: Record<string, string> = {
@@ -248,16 +288,7 @@ export class MtcuteTelegramGateway implements TelegramGateway {
       if (batch.length === 0) break;
 
       for (const msg of batch) {
-        messages.push({
-          id: msg.id,
-          chatId: msg.chat.id,
-          senderName: msg.sender.displayName,
-          text: msg.text || null,
-          date: msg.date,
-          media: mapMedia(msg.media),
-          replyToId: msg.replyToMessage?.id ?? null,
-          isOutgoing: msg.isOutgoing,
-        });
+        messages.push(messageFromMtcute(msg));
       }
 
       loaded += batch.length;
@@ -291,16 +322,7 @@ export class MtcuteTelegramGateway implements TelegramGateway {
       if (batch.length === 0) break;
 
       for (const msg of batch) {
-        messages.push({
-          id: msg.id,
-          chatId: msg.chat.id,
-          senderName: msg.sender.displayName,
-          text: msg.text || null,
-          date: msg.date,
-          media: mapMedia(msg.media),
-          replyToId: msg.replyToMessage?.id ?? null,
-          isOutgoing: msg.isOutgoing,
-        });
+        messages.push(messageFromMtcute(msg));
       }
 
       loaded += batch.length;
@@ -347,16 +369,7 @@ export class MtcuteTelegramGateway implements TelegramGateway {
           break;
         }
 
-        messages.push({
-          id: msg.id,
-          chatId: msg.chat.id,
-          senderName: msg.sender.displayName,
-          text: msg.text || null,
-          date: msg.date,
-          media: mapMedia(msg.media),
-          replyToId: msg.replyToMessage?.id ?? null,
-          isOutgoing: msg.isOutgoing,
-        });
+        messages.push(messageFromMtcute(msg));
       }
 
       loaded += batch.length;
