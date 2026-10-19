@@ -13,10 +13,11 @@
     "build": "tsdown",
     "dev": "tsdown --watch",
     "start": "node dist/main.mjs",
+    "test": "node scripts/test.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check src",
-    "lint:fix": "biome check --write src",
-    "format": "biome format --write src",
+    "lint": "biome check src scripts",
+    "lint:fix": "biome check --write src scripts",
+    "format": "biome format --write src scripts",
     "prepublishOnly": "npm run lint && npm run build"
   },
   "keywords": [
@@ -40,7 +41,7 @@
     "url": "https://github.com/cyberash-dev/tg-mtproto-cli/issues"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19.0"
   },
   "dependencies": {
     "@mtcute/node": "0.28.1",
@@ -56,6 +57,7 @@
     "@types/cli-progress": "3.11.6",
     "@types/node": "25.3.0",
     "tsdown": "0.20.3",
+    "tsx": "4.20.6",
     "typescript": "5.9.3"
   }
 }

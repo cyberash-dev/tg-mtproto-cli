@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import type { Command } from "commander";
 import type { SetDefaultAccountUseCase } from "../../use-cases/set-default-account.js";
+import { exitWithError } from "../errors.js";
 
 export function registerDefaultCommand(program: Command, setDefaultUseCase: SetDefaultAccountUseCase) {
   program
@@ -17,8 +18,7 @@ export function registerDefaultCommand(program: Command, setDefaultUseCase: SetD
           console.log(message);
           process.exit(0);
         }
-        console.error(chalk.red(message));
-        process.exit(message.includes("not found") ? 1 : 2);
+        exitWithError(program, message, message.includes("not found") ? 1 : 2);
       }
     });
 }

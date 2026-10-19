@@ -45,16 +45,32 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+function messageText(message: Message): string {
+  let text = message.text ?? "";
+  const links = [...message.links].sort((left, right) => right.offset - left.offset);
+  for (const link of links) {
+    if (link.text === link.url) continue;
+    const end = link.offset + link.length;
+    const url = link.url.replace(
+      /\p{Cc}/gu,
+      (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    );
+    text = `${text.slice(0, end)} (${url})${text.slice(end)}`;
+  }
+  return text;
+}
+
 export function formatMessagesText(messages: Message[]): string {
   if (messages.length === 0) return "";
 
   return messages
     .map((msg) => {
-      const header = `${chalk.dim(`[${formatDate(msg.date)}]`)} ${chalk.cyan(`#${msg.id}`)} ${chalk.bold(msg.senderName)}:`;
+      const topic = msg.topicId === null ? "" : `${chalk.dim(`[topic:${msg.topicId}]`)} `;
+      const header = `${chalk.dim(`[${formatDate(msg.date)}]`)} ${chalk.cyan(`#${msg.id}`)} ${topic}${chalk.bold(msg.senderName)}:`;
       const lines: string[] = [header];
 
       if (msg.text) {
-        lines.push(`  ${msg.text}`);
+        lines.push(`  ${messageText(msg)}`);
       }
       if (msg.media) {
         lines.push(`  ${chalk.italic(formatMediaPlaceholder(msg.media))}`);

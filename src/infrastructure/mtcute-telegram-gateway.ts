@@ -1,19 +1,62 @@
-import { TelegramClient } from "@mtcute/node";
+import { getMarkedPeerId, type Message as MtcuteMessage, SearchFilters, TelegramClient, type tl } from "@mtcute/node";
 import { encodeQR } from "qr";
 import type { Account } from "../domain/entities/account.js";
 import type { Chat, ChatType } from "../domain/entities/chat.js";
 import type { Media, MediaType } from "../domain/entities/media.js";
 import type { Message } from "../domain/entities/message.js";
+import type { MessageFilter } from "../domain/entities/message-filter.js";
+import type { MessageLink } from "../domain/entities/message-link.js";
 import type { Topic } from "../domain/entities/topic.js";
 import type { TelegramGateway } from "../domain/ports/telegram-gateway.js";
 
+const searchFilters: Readonly<Record<MessageFilter, tl.TypeMessagesFilter>> = {
+  url: SearchFilters.Url,
+  photo: SearchFilters.Photo,
+  video: SearchFilters.Video,
+  "photo-video": SearchFilters.PhotoAndVideo,
+  document: SearchFilters.Document,
+  gif: SearchFilters.Gif,
+  voice: SearchFilters.Voice,
+  audio: SearchFilters.Audio,
+  "video-note": SearchFilters.Round,
+  pinned: SearchFilters.Pinned,
+};
+
 type MessageMedia = NonNullable<Awaited<ReturnType<TelegramClient["getMessages"]>>[0]>["media"];
+
+function messageLinks(message: MtcuteMessage): MessageLink[] {
+  return message.entities.flatMap((entity): MessageLink[] => {
+    if (!entity.is("text_link") && !entity.is("url")) return [];
+    const { offset, length } = entity;
+    if (
+      !Number.isInteger(offset) ||
+      !Number.isInteger(length) ||
+      offset < 0 ||
+      length <= 0 ||
+      offset + length > message.text.length
+    ) {
+      console.warn(`Skipping invalid link entity: messageId=${message.id} offset=${offset} length=${length}`);
+      return [];
+    }
+    return [
+      {
+        kind: entity.is("text_link") ? "text_link" : "url",
+        offset: entity.offset,
+        length: entity.length,
+        text: entity.text,
+        url: entity.is("text_link") ? entity.params.url : entity.text,
+      },
+    ];
+  });
+}
 
 function mapMediaTypeFromMtcute(media: NonNullable<MessageMedia>): MediaType | null {
   switch (media.type) {
     case "photo":
       return "photo";
     case "video":
+      if (media.isRound) return "video_note";
+      if (media.isAnimation) return "animation";
       return "video";
     case "document":
       return "document";
@@ -59,6 +102,43 @@ function mapMedia(raw: MessageMedia): Media | null {
   return { type: mediaType, fileName, mimeType, size };
 }
 
+function messageTopicId(message: MtcuteMessage): number | null {
+  if (!message._peers.has(message.raw.peerId)) return null;
+  const chat = message.chat;
+  if (chat.type !== "chat" || chat.chatType !== "supergroup" || !chat.isForum) return null;
+  const reply = message.replyToMessage;
+  if (reply?.isScheduled || message.replyToStory) return null;
+  const replyPeer = reply?.raw.replyToPeerId;
+  if (replyPeer && (replyPeer._ !== "peerChannel" || replyPeer.channelId !== chat.raw.id)) {
+    return reply.raw.replyToTopId ?? 1;
+  }
+  if (reply?.raw.replyFrom) return null;
+  if (message.raw._ === "messageService" && message.raw.action._ === "messageActionTopicCreate") return message.id;
+  if (message.isTopicMessage) return reply?.threadId ?? null;
+  return message.isService ? null : 1;
+}
+
+function messageFromMtcute(message: MtcuteMessage): Message {
+  const senderPeer = message.raw.fromId ?? message.raw.peerId;
+  return {
+    id: message.id,
+    chatId: getMarkedPeerId(message.raw.peerId),
+    senderName: message._peers.has(senderPeer) ? message.sender.displayName : String(getMarkedPeerId(senderPeer)),
+    text: message.text || null,
+    links: messageLinks(message),
+    date: message.date,
+    media: mapMedia(message.media),
+    replyToId: message.replyToMessage?.id ?? null,
+    topicId: messageTopicId(message),
+    isOutgoing: message.isOutgoing,
+  };
+}
+
+function telegramDate(seconds: number): Date | undefined {
+  /* mtcute normalizes dates with signed 32-bit truncation; zero disables a bound. */
+  return seconds > 0 && seconds <= 2_147_483_647 ? new Date(seconds * 1000) : undefined;
+}
+
 const MIME_EXT: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
@@ -82,19 +162,17 @@ function parseChatId(chatId: string | number): string | number {
   return Number.isFinite(num) ? num : chatId;
 }
 
-function mapPeerChatType(peer: { readonly type: string }): ChatType {
-  switch (peer.type) {
-    case "user":
-    case "bot":
-      return "private";
+function mapPeerChatType(peer: MtcuteMessage["chat"]): ChatType {
+  if (peer.type !== "chat") return "private";
+  switch (peer.chatType) {
     case "group":
       return "group";
     case "supergroup":
+    case "gigagroup":
+    case "monoforum":
       return "supergroup";
     case "channel":
       return "channel";
-    default:
-      return "private";
   }
 }
 
@@ -174,6 +252,7 @@ export class MtcuteTelegramGateway implements TelegramGateway {
       chats.push({
         id: peer.id,
         type: chatType,
+        isForum: peer.type === "chat" && Boolean(peer.isForum),
         title: peer.displayName,
         username: "username" in peer ? (peer.username ?? null) : null,
         unreadCount: dialog.unreadCount,
@@ -187,187 +266,65 @@ export class MtcuteTelegramGateway implements TelegramGateway {
     return chats;
   }
 
-  async getMessages(params: {
-    chatId: string | number;
-    limit: number;
-    all: boolean;
-    threadId?: number;
-    after?: Date;
-    onProgress?: (loaded: number) => void;
-  }): Promise<Message[]> {
-    const resolvedChatId = parseChatId(params.chatId);
-    const scanLimit = params.after ? Infinity : params.all ? Infinity : params.limit;
-    let messages: Message[];
+  async getMessages(params: Parameters<TelegramGateway["getMessages"]>[0]): Promise<Message[]> {
+    if (params.before && params.before.getTime() <= 0) return [];
 
-    if (params.threadId) {
-      messages = await this.getMessagesByThread(
-        resolvedChatId,
-        params.threadId,
-        scanLimit,
-        params.after,
-        params.onProgress,
-      );
-    } else {
-      messages = await this.getMessagesByHistory(resolvedChatId, scanLimit, params.after, params.onProgress);
-    }
-
-    if (!params.all && params.limit < messages.length) {
-      return messages.slice(-params.limit);
-    }
-    return messages;
-  }
-
-  private async getMessagesByHistory(
-    chatId: string | number,
-    limit: number,
-    after?: Date,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
-    if (after) {
-      return this.getHistoryForward(chatId, after, onProgress);
-    }
-    return this.getHistoryBackward(chatId, limit, onProgress);
-  }
-
-  private async getHistoryForward(
-    chatId: string | number,
-    after: Date,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
+    const limit = params.all ? Infinity : params.limit;
     const messages: Message[] = [];
-    let offset: { id: number; date: number } = { id: 0, date: Math.floor(after.getTime() / 1000) };
-    let loaded = 0;
+    const seenIds = new Set<number>();
+    const before = params.before ? telegramDate(Math.ceil(params.before.getTime() / 1000)) : undefined;
+    let offset = before ? { id: 0, date: before.getTime() / 1000 } : undefined;
+    let hasReachedLowerBound = false;
 
-    while (true) {
-      const batch = await this.client.getHistory(chatId, {
-        limit: 100,
-        offset,
-        reverse: true,
-      });
+    while (messages.length < limit && !hasReachedLowerBound) {
+      const batch = await this.messagePage(params, Math.min(limit - messages.length, 100), offset);
+      if (batch.messages.length === 0) break;
 
-      if (batch.length === 0) break;
-
-      for (const msg of batch) {
-        messages.push({
-          id: msg.id,
-          chatId: msg.chat.id,
-          senderName: msg.sender.displayName,
-          text: msg.text || null,
-          date: msg.date,
-          media: mapMedia(msg.media),
-          replyToId: msg.replyToMessage?.id ?? null,
-          isOutgoing: msg.isOutgoing,
-        });
-      }
-
-      loaded += batch.length;
-      onProgress?.(loaded);
-
-      const lastMsg = batch[batch.length - 1];
-      offset = { id: lastMsg.id, date: Math.floor(lastMsg.date.getTime() / 1000) };
-
-      if (batch.length < 100) break;
-    }
-
-    return messages;
-  }
-
-  private async getHistoryBackward(
-    chatId: string | number,
-    limit: number,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
-    const messages: Message[] = [];
-    let offset: { id: number; date: number } | undefined;
-    let loaded = 0;
-
-    while (loaded < limit) {
-      const batchSize = Math.min(limit === Infinity ? 100 : limit - loaded, 100);
-      const batch = await this.client.getHistory(chatId, {
-        limit: batchSize,
-        offset,
-      });
-
-      if (batch.length === 0) break;
-
-      for (const msg of batch) {
-        messages.push({
-          id: msg.id,
-          chatId: msg.chat.id,
-          senderName: msg.sender.displayName,
-          text: msg.text || null,
-          date: msg.date,
-          media: mapMedia(msg.media),
-          replyToId: msg.replyToMessage?.id ?? null,
-          isOutgoing: msg.isOutgoing,
-        });
-      }
-
-      loaded += batch.length;
-      onProgress?.(loaded);
-
-      const lastMsg = batch[batch.length - 1];
-      if (lastMsg) {
-        offset = { id: lastMsg.id, date: Math.floor(lastMsg.date.getTime() / 1000) };
-      }
-
-      if (batch.length < batchSize) break;
-    }
-
-    messages.reverse();
-    return messages;
-  }
-
-  private async getMessagesByThread(
-    chatId: string | number,
-    threadId: number,
-    limit: number,
-    after?: Date,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
-    const messages: Message[] = [];
-    let searchOffset = 0;
-    let loaded = 0;
-    let hitDateBoundary = false;
-
-    while (loaded < limit && !hitDateBoundary) {
-      const batchSize = Math.min(limit === Infinity ? 100 : limit - loaded, 100);
-      const batch = await this.client.searchMessages({
-        chatId,
-        threadId,
-        limit: batchSize,
-        offset: searchOffset,
-      });
-
-      if (batch.length === 0) break;
-
-      for (const msg of batch) {
-        if (after && msg.date < after) {
-          hitDateBoundary = true;
+      for (const message of batch.messages) {
+        if (params.after && message.date < params.after) {
+          hasReachedLowerBound = true;
           break;
         }
-
-        messages.push({
-          id: msg.id,
-          chatId: msg.chat.id,
-          senderName: msg.sender.displayName,
-          text: msg.text || null,
-          date: msg.date,
-          media: mapMedia(msg.media),
-          replyToId: msg.replyToMessage?.id ?? null,
-          isOutgoing: msg.isOutgoing,
-        });
+        if ((params.before && message.date >= params.before) || seenIds.has(message.id)) continue;
+        seenIds.add(message.id);
+        messages.push(messageFromMtcute(message));
+        if (messages.length === limit) break;
       }
 
-      loaded += batch.length;
-      onProgress?.(loaded);
-      searchOffset = batch[batch.length - 1].id;
-
-      if (batch.length < batchSize) break;
+      params.onProgress?.(messages.length);
+      if (messages.length === limit || hasReachedLowerBound || !batch.next) break;
+      if (offset && offset.id !== 0 && batch.next.id >= offset.id) {
+        throw new Error("Telegram pagination did not advance");
+      }
+      offset = batch.next;
     }
 
-    messages.reverse();
-    return messages;
+    return messages.reverse();
+  }
+
+  private async messagePage(
+    params: Parameters<TelegramGateway["getMessages"]>[0],
+    limit: number,
+    offset?: { id: number; date: number },
+  ): Promise<{ messages: readonly MtcuteMessage[]; next?: { id: number; date: number } }> {
+    const chatId = parseChatId(params.chatId);
+    if (params.threadId || params.filter || params.query || params.from) {
+      const batch = await this.client.searchMessages({
+        chatId,
+        threadId: params.threadId,
+        filter: params.filter ? searchFilters[params.filter] : undefined,
+        query: params.query,
+        fromUser: params.from === undefined ? undefined : parseChatId(params.from),
+        minDate: params.after ? telegramDate(Math.ceil(params.after.getTime() / 1000) - 1) : undefined,
+        maxDate: params.before ? telegramDate(Math.ceil(params.before.getTime() / 1000)) : undefined,
+        limit,
+        offset: offset?.id ?? 0,
+      });
+      return { messages: batch, next: batch.next === undefined ? undefined : { id: batch.next, date: 0 } };
+    }
+
+    const batch = await this.client.getHistory(chatId, { limit, offset });
+    return { messages: batch, next: batch.next };
   }
 
   async downloadMedia(params: {

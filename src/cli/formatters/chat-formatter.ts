@@ -19,7 +19,7 @@ export function formatChatsTable(chats: Chat[]): string {
   }
 
   const table = new Table({
-    head: ["#", "Chat ID", "Type", "Title", "Unread", "Last Activity"],
+    head: ["#", "Chat ID", "Type", "Forum", "Title", "Unread", "Last Activity"],
     style: { head: ["cyan"] },
   });
 
@@ -28,6 +28,7 @@ export function formatChatsTable(chats: Chat[]): string {
       i + 1,
       chat.id,
       chat.type,
+      chat.isForum ? "yes" : "no",
       chat.title,
       chat.unreadCount > 0 ? chalk.bold(String(chat.unreadCount)) : "—",
       formatTimeAgo(chat.lastActivity),

@@ -1,7 +1,7 @@
-import chalk from "chalk";
 import type { Command } from "commander";
 import type { ChatType } from "../../domain/entities/chat.js";
 import type { ChatsListUseCase } from "../../use-cases/chats-list.js";
+import { exitWithError } from "../errors.js";
 import { formatChatsJson, formatChatsTable } from "../formatters/chat-formatter.js";
 
 const VALID_TYPES = ["private", "group", "supergroup", "channel"];
@@ -16,8 +16,7 @@ export function registerChatsCommand(program: Command, chatsListUseCase: ChatsLi
     .action(async (opts) => {
       try {
         if (opts.type && !VALID_TYPES.includes(opts.type)) {
-          console.error(chalk.red(`Invalid chat type. Use: ${VALID_TYPES.join(", ")}`));
-          process.exit(1);
+          throw new Error(`Invalid chat type. Use: ${VALID_TYPES.join(", ")}`);
         }
 
         const chats = await chatsListUseCase.execute({
@@ -31,8 +30,7 @@ export function registerChatsCommand(program: Command, chatsListUseCase: ChatsLi
         console.log(json ? formatChatsJson(chats) : formatChatsTable(chats));
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error(chalk.red(message));
-        process.exit(message.includes("No default") || message.includes("expired") ? 2 : 1);
+        exitWithError(program, message, message.includes("No default") || message.includes("expired") ? 2 : 1);
       }
     });
 }

@@ -2,6 +2,7 @@ import { createInterface } from "node:readline";
 import chalk from "chalk";
 import type { Command } from "commander";
 import type { AuthUseCase } from "../../use-cases/auth.js";
+import { exitWithError } from "../errors.js";
 
 function prompt(
   rl: ReturnType<typeof createInterface>,
@@ -68,8 +69,7 @@ export function registerAuthCommand(program: Command, authUseCase: AuthUseCase) 
         console.log(chalk.green(`Logged in as ${name}${username}, alias: ${account.alias}`));
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error(chalk.red(message));
-        process.exit(1);
+        exitWithError(program, message, 1);
       } finally {
         rl.close();
       }

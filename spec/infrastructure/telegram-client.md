@@ -23,9 +23,15 @@ type TelegramGateway = {
   }): Promise<Chat[]>
 
   getMessages(params: {
-    chatId: string
+    chatId: string | number
     limit: number
     all: boolean
+    threadId?: number
+    filter?: MessageFilter
+    query?: string
+    from?: string
+    after?: Date
+    before?: Date
     onProgress?: (loaded: number) => void
   }): Promise<Message[]>
 
@@ -114,3 +120,32 @@ type CreateTelegramGateway = (params: {
 Метод `resolveChat` принимает строку и определяет тип идентификатора:
 - Числовой ID: используется напрямую
 - Username (с или без `@`): резолвится через `client.resolvePeer()`
+
+### Чтение и поиск сообщений
+
+`MessageFilter` принадлежит domain, без импорта mtcute:
+`url | photo | video | photo-video | document | gif | voice | audio | video-note | pinned`.
+Адаптер переводит его в `SearchFilters.Url/Photo/Video/PhotoAndVideo/Document/Gif/Voice/Audio/Round/Pinned`.
+`from` становится `fromUser` (числовая строка преобразуется в число); mtcute
+резолвит ID/username и сохраняет исходную ошибку при неудаче.
+
+При topic/filter/query/from вызывается `searchMessages` с явным chatId на каждой
+странице; остальные чтения используют `getHistory`. Фильтры не теряются между
+страницами. Пустой query с пустым filter не используется для чтения только по датам.
+`-n` считает подходящие сообщения, `all` отменяет лимит. Страницы ограничены 100,
+идут от новых к старым, короткая страница сама по себе не означает конец. Курсор
+берётся из `next`, дубли ID не учитываются, неубывающий курсор вызывает ошибку.
+Остановка: N совпадений, исчерпание, нижняя граница; результат разворачивается один раз.
+
+`after` включителен, `before` исключителен. Search получает Date с нижней границей
+`(ceil(after_ms / 1000) - 1) * 1000` и верхней `ceil(before_ms / 1000) * 1000`.
+History начинает с `{ id: 0, date: ceil(before_ms / 1000) }`, если верхняя граница
+задана. Положительный int32 является допустимым серверным диапазоном; внешние
+границы опускаются, чтобы mtcute не переполнил timestamp, и проверяются локально.
+Точная проверка исходных дат выполняется до подсчёта N, включая дробные секунды.
+При before не позже Unix epoch результат пуст, запросы чтения не отправляются.
+
+Общий mapper сохраняет URL-сущности. Вложения не скачиваются; у mtcute
+`video.isAnimation` отображается в `animation`, `video.isRound` в `video_note`,
+остальные доступные метаданные сохраняются. Ошибки сети и резолвинга не превращаются
+в пустой результат. Disconnect выполняется use case через `finally`.

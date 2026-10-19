@@ -40,6 +40,8 @@ CLI tool for reading Telegram data directly via MTProto protocol. No Bot API, no
 
 ## Required binaries
 
+Requires Node.js 20.19.0 or newer.
+
 | Binary | Install | Purpose |
 |---|---|---|
 | `tg` | `npm install -g tg-mtproto-cli` | Core CLI |
@@ -99,30 +101,65 @@ To find a chat's numeric ID, use `tg chats --json | jq '.[] | {id, title}'`.
 tg chats [--type private|group|supergroup|channel] [--limit 50] [--offset 0]
 ```
 
+Chat JSON exposes `isForum`; readable tables have a `Forum` column. Groups and
+channels retain their correct type. Gigagroups and monoforums map to the existing
+`supergroup` category: Telegram defines a monoforum as a special supergroup for
+channel DMs. Its conversations use `saved_peer_id`; this does not add monoforum
+topic support.
+
 ### Read messages
 
 ```bash
-tg messages <chat> [-n 100] [--all] [--topic <id>] [--after <datetime>]
+tg messages <chat> [-n 100] [--all] [--topic <id>] [--filter <kind>] [--query <text>] [--from <peer>] [--after <datetime>] [--before <datetime>]
 ```
 
 | Flag | Description |
 |---|---|
-| `-n <count>` | Number of messages (default: 100) |
-| `--all` | Entire history (shows progress) |
+| `-n <count>` | Latest N matches (default: 100); 0 returns `[]` in JSON without connecting |
+| `--all` | All matches in the selected chat/topic/date range; overrides `-n` |
 | `--topic <id>` | Forum topic (get IDs via `tg topics <chat>`) |
-| `--after <datetime>` | Only messages after this time |
+| `--filter <kind>` | `url`, `photo`, `video`, `photo-video`, `document`, `gif`, `voice`, `audio`, `video-note`, `pinned` |
+| `--query <text>` | Server-side text search |
+| `--from <peer>` | Sender numeric ID or username |
+| `--after <datetime>` | Include messages at or after this time |
+| `--before <datetime>` | Exclude messages at or after this time |
 
-`--after` formats: `2026-02-22`, `2026-02-22T10:00`, `10:00` (today).
+A chat is mandatory. All options combine; N counts matches after all filters,
+printed oldest-to-newest. Pages are bounded to 100 and stop at N, exhaustion or
+the lower date bound; duplicates are skipped and a repeated cursor is an error.
+`--all` is intentionally unbounded within the chosen scope and stores results in memory.
+Without either date bound it prints a text warning on stderr, including in JSON
+mode. Filters and queries do not cap the result count; add dates or omit `--all`
+to use `-n`.
 
-When `--after` + `-n` are combined: filter by date first, then take last N.
+Both date flags accept `2026-02-22` (midnight UTC, unchanged),
+`2026-02-22T10:00` / `"2026-02-22 10:00"` (local time), and `10:00` (today, local
+time). ISO seconds/fractions (up to three digits) and `Z` / `+03:00` offsets are supported. Message
+timestamps have second precision. Invalid dates/times, equal/reversed bounds,
+empty query/sender and malformed counts/topic IDs fail before network access.
+Counts must be nonnegative safe integers, topic IDs positive 32-bit integers.
+For negative chat IDs, put options before `--`, then the ID:
+
+```bash
+tg --json messages --filter url --topic 42 -n 20 -- -1001234567890
+```
+
+Telegram defines matching semantics. `document` is generic files, `gif` includes
+animated MP4s. One category per search; `photo-video` is a predefined combination.
+No global search, arbitrary category combinations, filename/MIME/domain filters,
+automatic downloads or link traversal. Search only returns attachment metadata.
 
 ### List forum topics
 
 ```bash
-tg topics <chat>
+tg topics <chat> [--limit 100]
 ```
 
-Returns topic IDs needed for `--topic` flag.
+Returns topic IDs and names needed for `--topic`. Increase `--limit` explicitly
+if the desired name is outside the default 100 entries. Join a message's
+`topicId` to the listing's `id` within the same requested `chatId`, never across
+chats. Renamed topics keep their ID; closed topics remain readable. A missing,
+deleted or inaccessible title does not invalidate a trustworthy message topic ID.
 
 ### Download media
 
@@ -148,10 +185,17 @@ tg default <alias>               # set default
 |---|---|
 | `--account <alias>` | Use specific account instead of default |
 | `--json` | JSON output (for scripting/piping) |
+| `--version` | Installed package version from `package.json` (not a Git revision) |
 
 ## JSON output
 
-All commands support `--json` for structured output. Dates are ISO 8601.
+Listings and downloads support `--json` for structured results. Dates are ISO 8601.
+Argument and command failures emit one JSON object on stderr, for example
+`{"error":"message","code":1}`. The numeric code matches the existing process exit
+code (1 or 2), and error text contains no terminal color codes. Capture stderr
+separately from successful JSON stdout; progress is disabled in JSON mode.
+Explicit help/version, interactive authentication prompts, and account-management
+success messages remain text.
 
 ```bash
 tg chats --json
@@ -167,16 +211,48 @@ tg download @chat 42 --json
   "chatId": -1001234567890,
   "senderName": "John",
   "text": "Hello",
+  "links": [],
   "date": "2026-02-22T10:15:00.000Z",
   "media": { "type": "photo", "fileName": null, "mimeType": "image/jpeg", "size": 262525 },
   "replyToId": null,
+  "topicId": 1,
   "isOutgoing": false
 }
 ```
 
-`media` is `null` when no attachment. `media.type`: `photo`, `video`, `document`, `audio`, `voice`, `sticker`.
+`media` is `null` when no attachment. `media.type`: `photo`, `video`, `document`, `audio`, `voice`, `sticker`, `animation`, `video_note`.
+
+`topicId` identifies the forum topic, while `replyToId` remains the direct reply.
+In a confirmed supergroup forum, ordinary General messages/replies use ID 1,
+non-General roots/replies use the topic root, and topic-creation service messages
+use their own ID. Other service messages require an explicit topic header.
+Cross-chat quotes with a foreign `replyToPeerId` use the local `replyToTopId`,
+or General (1) when absent, never the foreign `replyToMsgId`.
+Non-forum messages, absent forum metadata, hidden quote sources without a peer,
+story/scheduled replies and inconclusive headers use `null`. Missing chat metadata
+also gives `topicId: null`; `chatId` still comes from the raw peer ID. Missing sender
+metadata gives `senderName` the numeric marked peer ID as a string. Terminal output
+adds `[topic:<id>]` only when known. Mapping performs no additional history scans
+or topic-name requests.
+
+`text` stays unchanged. `links` contains visible (`url`) and hidden (`text_link`)
+URL entities from text or captions, or `[]` when none are present. Each entry has
+`kind`, UTF-16 `offset` and `length`, the label `text`, and the exact `url` target.
+Repeated occurrences are retained. Other formatting entities are omitted.
+Invalid link ranges are skipped with a text warning on stderr, also in JSON mode:
+`Skipping invalid link entity: messageId=<id> offset=<offset> length=<length>`.
+The original message and valid links remain available; stdout stays JSON-only.
+Terminal output adds hidden destinations in parentheses unless the label already
+equals the URL; control characters in appended destinations are escaped.
+Displaying a destination does not open it.
 
 ## Common workflows
+
+### Extract visible and hidden link destinations
+
+```bash
+tg messages @chat --filter url -n 20 --json | jq -r '.[].links[].url'
+```
 
 ### Extract text from a chat since a date
 
@@ -187,7 +263,7 @@ tg messages @channel --after 2026-02-01 --json | jq -r '.[].text // empty'
 ### Find messages with photos
 
 ```bash
-tg messages @chat -n 500 --json | jq '[.[] | select(.media.type == "photo")]'
+tg messages @chat --filter photo -n 20 --json
 ```
 
 ### Download all photos from recent messages
@@ -201,8 +277,8 @@ done
 ### Read a forum topic
 
 ```bash
-tg topics -1001234567890          # find topic ID
-tg messages -1001234567890 --topic 42 -n 20
+tg topics --limit 100 -- -1001234567890  # find topic ID and current name
+tg messages --topic 42 -n 20 -- -1001234567890
 ```
 
 ### Multi-account usage
