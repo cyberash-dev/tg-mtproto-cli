@@ -53,6 +53,12 @@ export function registerMessagesCommand(program: Command, messagesListUseCase: M
           before?: string;
         },
       ) => {
+        let progressWidth = 0;
+        const clearProgress = (): void => {
+          if (progressWidth === 0) return;
+          process.stderr.write(`\r${" ".repeat(progressWidth)}\r`);
+          progressWidth = 0;
+        };
         try {
           nonEmptyArgument(chat, "Chat");
           const { json, account } = program.opts<{ json?: boolean; account?: string }>();
@@ -74,16 +80,17 @@ export function registerMessagesCommand(program: Command, messagesListUseCase: M
             onProgress: json
               ? undefined
               : (loaded: number) => {
-                  process.stderr.write(`\rLoading messages... ${loaded} loaded`);
+                  const progress = `Loading messages... ${loaded} loaded`;
+                  progressWidth = progress.length;
+                  process.stderr.write(`\r${progress}`);
                 },
           });
 
-          if (!json && (opts.all || after)) {
-            process.stderr.write(`\r${" ".repeat(50)}\r`);
-          }
+          clearProgress();
 
           console.log(json ? formatMessagesJson(messages) : formatMessagesText(messages));
         } catch (err: unknown) {
+          clearProgress();
           const message = err instanceof Error ? err.message : String(err);
           exitWithError(program, message, message.includes("No default") || message.includes("expired") ? 2 : 1);
         }

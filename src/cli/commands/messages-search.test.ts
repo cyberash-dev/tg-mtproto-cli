@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
+import { stripVTControlCharacters } from "node:util";
 import { Long, PeersIndex, SearchFilters, TelegramClient, Message as TelegramMessage, type tl } from "@mtcute/node";
 import { Command, CommanderError } from "commander";
 import type { CredentialStorage } from "../../domain/ports/credential-storage.js";
@@ -97,6 +98,38 @@ function commandHarness(context: TestContext) {
     },
   };
 }
+
+for (const options of [
+  [],
+  ["--query", "Read"],
+  ["--filter", "url"],
+  ["--before", "2027-01-01"],
+  ["--from", "123"],
+  ["--topic", "7"],
+]) {
+  test(`readable messages clear progress for ${options.join(" ") || "plain history"}`, async (context) => {
+    const command = commandHarness(context);
+    context.mock.method(TelegramClient.prototype, "getHistory", async () => [telegramMessage()]);
+    context.mock.method(TelegramClient.prototype, "searchMessages", async () => [telegramMessage()]);
+
+    const output = await command.run(["messages", "123", "-n", "101", ...options]);
+
+    assert.equal(output.exitCode, 0, output.stderr);
+    assert.match(output.stderr, /\rLoading messages\.\.\. 1 loaded\r +\r$/);
+  });
+}
+
+test("readable messages clear progress before reporting a pagination failure", async (context) => {
+  const command = commandHarness(context);
+  context.mock.method(TelegramClient.prototype, "searchMessages", async () =>
+    Object.assign([telegramMessage()], { total: 2, next: 42 }),
+  );
+
+  const output = await command.run(["messages", "123", "--query", "Read", "-n", "101"]);
+
+  assert.equal(output.exitCode, 1);
+  assert.match(stripVTControlCharacters(output.stderr), /\rLoading messages\.\.\. 1 loaded\r +\rTelegram pagination/);
+});
 
 test("URL search reaches Telegram with explicit negative chat scope and preserves hidden targets", async (context) => {
   const command = commandHarness(context);
