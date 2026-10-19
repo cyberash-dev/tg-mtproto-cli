@@ -1,4 +1,5 @@
 import type { Message } from "../domain/entities/message.js";
+import type { MessageFilter } from "../domain/entities/message-filter.js";
 import type { CredentialStorage } from "../domain/ports/credential-storage.js";
 import type { SessionStorage } from "../domain/ports/session-storage.js";
 import type { CreateTelegramGateway } from "../domain/ports/telegram-gateway.js";
@@ -16,9 +17,15 @@ export class MessagesListUseCase {
     limit: number;
     all: boolean;
     threadId?: number;
+    filter?: MessageFilter;
     after?: Date;
+    before?: Date;
+    query?: string;
+    from?: string;
     onProgress?: (loaded: number) => void;
   }): Promise<Message[]> {
+    if (!params.all && params.limit === 0) return [];
+
     const account = params.alias
       ? await this.credentialStorage.getAccountByAlias(params.alias)
       : await this.credentialStorage.getDefaultAccount();
@@ -44,7 +51,11 @@ export class MessagesListUseCase {
         limit: params.limit,
         all: params.all,
         threadId: params.threadId,
+        filter: params.filter,
         after: params.after,
+        before: params.before,
+        query: params.query,
+        from: params.from,
         onProgress: params.onProgress,
       });
     } finally {

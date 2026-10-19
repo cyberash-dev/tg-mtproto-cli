@@ -147,7 +147,12 @@ test("multiple links retain UTF-16 ranges and repeated targets beneath overlappi
 
 for (const route of [
   { name: "backward history", options: {}, historyIds: [42, 41], threadIds: [] },
-  { name: "forward history", options: { after: new Date(1_769_999_000_000) }, historyIds: [41, 42], threadIds: [] },
+  {
+    name: "date-bounded history",
+    options: { after: new Date(1_769_999_000_000) },
+    historyIds: [42, 41],
+    threadIds: [],
+  },
   { name: "thread search", options: { threadId: 7 }, historyIds: [], threadIds: [42, 41] },
 ]) {
   test(`${route.name} preserves caption links and existing fields in chronological JSON`, async (context) => {

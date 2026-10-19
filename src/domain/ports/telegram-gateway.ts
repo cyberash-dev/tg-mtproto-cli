@@ -1,6 +1,7 @@
 import type { Account } from "../entities/account.js";
 import type { Chat, ChatType } from "../entities/chat.js";
 import type { Message } from "../entities/message.js";
+import type { MessageFilter } from "../entities/message-filter.js";
 import type { Topic } from "../entities/topic.js";
 
 export type TelegramGateway = {
@@ -19,7 +20,11 @@ export type TelegramGateway = {
     limit: number;
     all: boolean;
     threadId?: number;
+    filter?: MessageFilter;
     after?: Date;
+    before?: Date;
+    query?: string;
+    from?: string;
     onProgress?: (loaded: number) => void;
   }): Promise<Message[]>;
 

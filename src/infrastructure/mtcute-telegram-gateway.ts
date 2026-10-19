@@ -1,12 +1,26 @@
-import { type Message as MtcuteMessage, TelegramClient } from "@mtcute/node";
+import { type Message as MtcuteMessage, SearchFilters, TelegramClient, type tl } from "@mtcute/node";
 import { encodeQR } from "qr";
 import type { Account } from "../domain/entities/account.js";
 import type { Chat, ChatType } from "../domain/entities/chat.js";
 import type { Media, MediaType } from "../domain/entities/media.js";
 import type { Message } from "../domain/entities/message.js";
+import type { MessageFilter } from "../domain/entities/message-filter.js";
 import type { MessageLink } from "../domain/entities/message-link.js";
 import type { Topic } from "../domain/entities/topic.js";
 import type { TelegramGateway } from "../domain/ports/telegram-gateway.js";
+
+const searchFilters: Readonly<Record<MessageFilter, tl.TypeMessagesFilter>> = {
+  url: SearchFilters.Url,
+  photo: SearchFilters.Photo,
+  video: SearchFilters.Video,
+  "photo-video": SearchFilters.PhotoAndVideo,
+  document: SearchFilters.Document,
+  gif: SearchFilters.Gif,
+  voice: SearchFilters.Voice,
+  audio: SearchFilters.Audio,
+  "video-note": SearchFilters.Round,
+  pinned: SearchFilters.Pinned,
+};
 
 type MessageMedia = NonNullable<Awaited<ReturnType<TelegramClient["getMessages"]>>[0]>["media"];
 
@@ -40,6 +54,8 @@ function mapMediaTypeFromMtcute(media: NonNullable<MessageMedia>): MediaType | n
     case "photo":
       return "photo";
     case "video":
+      if (media.isRound) return "video_note";
+      if (media.isAnimation) return "animation";
       return "video";
     case "document":
       return "document";
@@ -97,6 +113,11 @@ function messageFromMtcute(message: MtcuteMessage): Message {
     replyToId: message.replyToMessage?.id ?? null,
     isOutgoing: message.isOutgoing,
   };
+}
+
+function telegramDate(seconds: number): Date | undefined {
+  /* mtcute normalizes dates with signed 32-bit truncation; zero disables a bound. */
+  return seconds > 0 && seconds <= 2_147_483_647 ? new Date(seconds * 1000) : undefined;
 }
 
 const MIME_EXT: Record<string, string> = {
@@ -227,160 +248,65 @@ export class MtcuteTelegramGateway implements TelegramGateway {
     return chats;
   }
 
-  async getMessages(params: {
-    chatId: string | number;
-    limit: number;
-    all: boolean;
-    threadId?: number;
-    after?: Date;
-    onProgress?: (loaded: number) => void;
-  }): Promise<Message[]> {
-    const resolvedChatId = parseChatId(params.chatId);
-    const scanLimit = params.after ? Infinity : params.all ? Infinity : params.limit;
-    let messages: Message[];
+  async getMessages(params: Parameters<TelegramGateway["getMessages"]>[0]): Promise<Message[]> {
+    if (params.before && params.before.getTime() <= 0) return [];
 
-    if (params.threadId) {
-      messages = await this.getMessagesByThread(
-        resolvedChatId,
-        params.threadId,
-        scanLimit,
-        params.after,
-        params.onProgress,
-      );
-    } else {
-      messages = await this.getMessagesByHistory(resolvedChatId, scanLimit, params.after, params.onProgress);
-    }
-
-    if (!params.all && params.limit < messages.length) {
-      return messages.slice(-params.limit);
-    }
-    return messages;
-  }
-
-  private async getMessagesByHistory(
-    chatId: string | number,
-    limit: number,
-    after?: Date,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
-    if (after) {
-      return this.getHistoryForward(chatId, after, onProgress);
-    }
-    return this.getHistoryBackward(chatId, limit, onProgress);
-  }
-
-  private async getHistoryForward(
-    chatId: string | number,
-    after: Date,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
+    const limit = params.all ? Infinity : params.limit;
     const messages: Message[] = [];
-    let offset: { id: number; date: number } = { id: 0, date: Math.floor(after.getTime() / 1000) };
-    let loaded = 0;
+    const seenIds = new Set<number>();
+    const before = params.before ? telegramDate(Math.ceil(params.before.getTime() / 1000)) : undefined;
+    let offset = before ? { id: 0, date: before.getTime() / 1000 } : undefined;
+    let hasReachedLowerBound = false;
 
-    while (true) {
-      const batch = await this.client.getHistory(chatId, {
-        limit: 100,
-        offset,
-        reverse: true,
-      });
+    while (messages.length < limit && !hasReachedLowerBound) {
+      const batch = await this.messagePage(params, Math.min(limit - messages.length, 100), offset);
+      if (batch.messages.length === 0) break;
 
-      if (batch.length === 0) break;
-
-      for (const msg of batch) {
-        messages.push(messageFromMtcute(msg));
-      }
-
-      loaded += batch.length;
-      onProgress?.(loaded);
-
-      const lastMsg = batch[batch.length - 1];
-      offset = { id: lastMsg.id, date: Math.floor(lastMsg.date.getTime() / 1000) };
-
-      if (batch.length < 100) break;
-    }
-
-    return messages;
-  }
-
-  private async getHistoryBackward(
-    chatId: string | number,
-    limit: number,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
-    const messages: Message[] = [];
-    let offset: { id: number; date: number } | undefined;
-    let loaded = 0;
-
-    while (loaded < limit) {
-      const batchSize = Math.min(limit === Infinity ? 100 : limit - loaded, 100);
-      const batch = await this.client.getHistory(chatId, {
-        limit: batchSize,
-        offset,
-      });
-
-      if (batch.length === 0) break;
-
-      for (const msg of batch) {
-        messages.push(messageFromMtcute(msg));
-      }
-
-      loaded += batch.length;
-      onProgress?.(loaded);
-
-      const lastMsg = batch[batch.length - 1];
-      if (lastMsg) {
-        offset = { id: lastMsg.id, date: Math.floor(lastMsg.date.getTime() / 1000) };
-      }
-
-      if (batch.length < batchSize) break;
-    }
-
-    messages.reverse();
-    return messages;
-  }
-
-  private async getMessagesByThread(
-    chatId: string | number,
-    threadId: number,
-    limit: number,
-    after?: Date,
-    onProgress?: (loaded: number) => void,
-  ): Promise<Message[]> {
-    const messages: Message[] = [];
-    let searchOffset = 0;
-    let loaded = 0;
-    let hitDateBoundary = false;
-
-    while (loaded < limit && !hitDateBoundary) {
-      const batchSize = Math.min(limit === Infinity ? 100 : limit - loaded, 100);
-      const batch = await this.client.searchMessages({
-        chatId,
-        threadId,
-        limit: batchSize,
-        offset: searchOffset,
-      });
-
-      if (batch.length === 0) break;
-
-      for (const msg of batch) {
-        if (after && msg.date < after) {
-          hitDateBoundary = true;
+      for (const message of batch.messages) {
+        if (params.after && message.date < params.after) {
+          hasReachedLowerBound = true;
           break;
         }
-
-        messages.push(messageFromMtcute(msg));
+        if ((params.before && message.date >= params.before) || seenIds.has(message.id)) continue;
+        seenIds.add(message.id);
+        messages.push(messageFromMtcute(message));
+        if (messages.length === limit) break;
       }
 
-      loaded += batch.length;
-      onProgress?.(loaded);
-      searchOffset = batch[batch.length - 1].id;
-
-      if (batch.length < batchSize) break;
+      params.onProgress?.(messages.length);
+      if (messages.length === limit || hasReachedLowerBound || !batch.next) break;
+      if (offset && offset.id !== 0 && batch.next.id >= offset.id) {
+        throw new Error("Telegram pagination did not advance");
+      }
+      offset = batch.next;
     }
 
-    messages.reverse();
-    return messages;
+    return messages.reverse();
+  }
+
+  private async messagePage(
+    params: Parameters<TelegramGateway["getMessages"]>[0],
+    limit: number,
+    offset?: { id: number; date: number },
+  ): Promise<{ messages: readonly MtcuteMessage[]; next?: { id: number; date: number } }> {
+    const chatId = parseChatId(params.chatId);
+    if (params.threadId || params.filter || params.query || params.from) {
+      const batch = await this.client.searchMessages({
+        chatId,
+        threadId: params.threadId,
+        filter: params.filter ? searchFilters[params.filter] : undefined,
+        query: params.query,
+        fromUser: params.from === undefined ? undefined : parseChatId(params.from),
+        minDate: params.after ? telegramDate(Math.ceil(params.after.getTime() / 1000) - 1) : undefined,
+        maxDate: params.before ? telegramDate(Math.ceil(params.before.getTime() / 1000)) : undefined,
+        limit,
+        offset: offset?.id ?? 0,
+      });
+      return { messages: batch, next: batch.next === undefined ? undefined : { id: batch.next, date: 0 } };
+    }
+
+    const batch = await this.client.getHistory(chatId, { limit, offset });
+    return { messages: batch, next: batch.next };
   }
 
   async downloadMedia(params: {

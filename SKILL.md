@@ -102,19 +102,41 @@ tg chats [--type private|group|supergroup|channel] [--limit 50] [--offset 0]
 ### Read messages
 
 ```bash
-tg messages <chat> [-n 100] [--all] [--topic <id>] [--after <datetime>]
+tg messages <chat> [-n 100] [--all] [--topic <id>] [--filter <kind>] [--query <text>] [--from <peer>] [--after <datetime>] [--before <datetime>]
 ```
 
 | Flag | Description |
 |---|---|
-| `-n <count>` | Number of messages (default: 100) |
-| `--all` | Entire history (shows progress) |
+| `-n <count>` | Latest N matches (default: 100); 0 returns `[]` in JSON without connecting |
+| `--all` | All matches in the selected chat/topic/date range; overrides `-n` |
 | `--topic <id>` | Forum topic (get IDs via `tg topics <chat>`) |
-| `--after <datetime>` | Only messages after this time |
+| `--filter <kind>` | `url`, `photo`, `video`, `photo-video`, `document`, `gif`, `voice`, `audio`, `video-note`, `pinned` |
+| `--query <text>` | Server-side text search |
+| `--from <peer>` | Sender numeric ID or username |
+| `--after <datetime>` | Include messages at or after this time |
+| `--before <datetime>` | Exclude messages at or after this time |
 
-`--after` formats: `2026-02-22`, `2026-02-22T10:00`, `10:00` (today).
+A chat is mandatory. All options combine; N counts matches after all filters,
+printed oldest-to-newest. Pages are bounded to 100 and stop at N, exhaustion or
+the lower date bound; duplicates are skipped and a repeated cursor is an error.
+`--all` is intentionally unbounded within the chosen scope and stores results in memory.
 
-When `--after` + `-n` are combined: filter by date first, then take last N.
+Both date flags accept `2026-02-22` (midnight UTC, unchanged),
+`2026-02-22T10:00` / `"2026-02-22 10:00"` (local time), and `10:00` (today, local
+time). ISO seconds/fractions (up to three digits) and `Z` / `+03:00` offsets are supported. Message
+timestamps have second precision. Invalid dates/times, equal/reversed bounds,
+empty query/sender and malformed counts/topic IDs fail before network access.
+Counts must be nonnegative safe integers, topic IDs positive 32-bit integers.
+For negative chat IDs, put options before `--`, then the ID:
+
+```bash
+tg --json messages --filter url --topic 42 -n 20 -- -1001234567890
+```
+
+Telegram defines matching semantics. `document` is generic files, `gif` includes
+animated MP4s. One category per search; `photo-video` is a predefined combination.
+No global search, arbitrary category combinations, filename/MIME/domain filters,
+automatic downloads or link traversal. Search only returns attachment metadata.
 
 ### List forum topics
 
@@ -152,6 +174,8 @@ tg default <alias>               # set default
 ## JSON output
 
 All commands support `--json` for structured output. Dates are ISO 8601.
+For `messages`, errors remain text on stderr even in JSON mode; this differs
+from the older JSON-error specification. Progress never enters JSON stdout.
 
 ```bash
 tg chats --json
@@ -175,7 +199,7 @@ tg download @chat 42 --json
 }
 ```
 
-`media` is `null` when no attachment. `media.type`: `photo`, `video`, `document`, `audio`, `voice`, `sticker`.
+`media` is `null` when no attachment. `media.type`: `photo`, `video`, `document`, `audio`, `voice`, `sticker`, `animation`, `video_note`.
 
 `text` stays unchanged. `links` contains visible (`url`) and hidden (`text_link`)
 URL entities from text or captions, or `[]` when none are present. Each entry has
@@ -191,7 +215,7 @@ Displaying a destination does not open it.
 ### Extract visible and hidden link destinations
 
 ```bash
-tg messages @chat -n 20 --json | jq -r '.[].links[].url'
+tg messages @chat --filter url -n 20 --json | jq -r '.[].links[].url'
 ```
 
 ### Extract text from a chat since a date
@@ -203,7 +227,7 @@ tg messages @channel --after 2026-02-01 --json | jq -r '.[].text // empty'
 ### Find messages with photos
 
 ```bash
-tg messages @chat -n 500 --json | jq '[.[] | select(.media.type == "photo")]'
+tg messages @chat --filter photo -n 20 --json
 ```
 
 ### Download all photos from recent messages
@@ -218,7 +242,7 @@ done
 
 ```bash
 tg topics -1001234567890          # find topic ID
-tg messages -1001234567890 --topic 42 -n 20
+tg messages --topic 42 -n 20 -- -1001234567890
 ```
 
 ### Multi-account usage

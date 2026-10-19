@@ -13,7 +13,7 @@
     "build": "tsdown",
     "dev": "tsdown --watch",
     "start": "node dist/main.mjs",
-    "test": "tsx --test src/infrastructure/mtcute-telegram-gateway.test.ts src/cli/commands/messages.test.ts",
+    "test": "tsx --test src/infrastructure/mtcute-telegram-gateway.test.ts src/cli/commands/messages.test.ts src/cli/commands/messages-search.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
