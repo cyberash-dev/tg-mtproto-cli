@@ -127,6 +127,36 @@ media captions. Extract destinations from the latest 20 link-bearing messages wi
 tg messages @username --filter url -n 20 --json | jq -r '.[].links[].url'
 ```
 
+## Forum context
+
+Chat JSON includes `isForum`; the chat table has a `Forum` column. Group/channel
+classification uses Telegram's chat subtype. Gigagroups and monoforums use the
+existing `supergroup` category; monoforum topic semantics are not supported.
+
+Message JSON includes `topicId`, separate from `replyToId`. Readable output adds
+`[topic:42]` when the topic is known. In a confirmed supergroup forum, ordinary
+General messages and replies have `topicId: 1`; other topics use the topic root
+ID, including nested replies. Topic-creation service messages use their own ID.
+Other service messages need an explicit topic header. Non-forum messages and
+inconclusive metadata have `topicId: null`, including cross-chat quotes, story
+and scheduled replies. Missing forum flags are not inferred; a missing peer
+record still surfaces the provider error. No extra history or topic requests
+are made while mapping messages.
+
+Get topic names separately, using the same chat:
+
+```bash
+tg --json topics --limit 100 -- -1001234567890
+tg --json messages --topic 42 -n 20 -- -1001234567890
+```
+
+Join `message.topicId` to `topic.id` within the requested `message.chatId`.
+Topic IDs are not globally unique. The topic-list limit defaults to 100; increase
+it explicitly, for example `--limit 200`, if the needed name is missing. Renamed
+topics keep their ID, closed topics remain readable, and a deleted/inaccessible
+or unlisted title does not invalidate a known message topic ID. No topic names
+are fabricated or looked up per message.
+
 ## Global flags
 
 | Flag | Description |

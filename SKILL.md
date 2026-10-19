@@ -99,6 +99,10 @@ To find a chat's numeric ID, use `tg chats --json | jq '.[] | {id, title}'`.
 tg chats [--type private|group|supergroup|channel] [--limit 50] [--offset 0]
 ```
 
+Chat JSON exposes `isForum`; readable tables have a `Forum` column. Groups and
+channels retain their correct type. Gigagroups and monoforums map to the existing
+`supergroup` category; this does not add monoforum topic support.
+
 ### Read messages
 
 ```bash
@@ -141,10 +145,14 @@ automatic downloads or link traversal. Search only returns attachment metadata.
 ### List forum topics
 
 ```bash
-tg topics <chat>
+tg topics <chat> [--limit 100]
 ```
 
-Returns topic IDs needed for `--topic` flag.
+Returns topic IDs and names needed for `--topic`. Increase `--limit` explicitly
+if the desired name is outside the default 100 entries. Join a message's
+`topicId` to the listing's `id` within the same requested `chatId`, never across
+chats. Renamed topics keep their ID; closed topics remain readable. A missing,
+deleted or inaccessible title does not invalidate a trustworthy message topic ID.
 
 ### Download media
 
@@ -200,11 +208,21 @@ tg download @chat 42 --json
   "date": "2026-02-22T10:15:00.000Z",
   "media": { "type": "photo", "fileName": null, "mimeType": "image/jpeg", "size": 262525 },
   "replyToId": null,
+  "topicId": 1,
   "isOutgoing": false
 }
 ```
 
 `media` is `null` when no attachment. `media.type`: `photo`, `video`, `document`, `audio`, `voice`, `sticker`, `animation`, `video_note`.
+
+`topicId` identifies the forum topic, while `replyToId` remains the direct reply.
+In a confirmed supergroup forum, ordinary General messages/replies use ID 1,
+non-General roots/replies use the topic root, and topic-creation service messages
+use their own ID. Other service messages require an explicit topic header.
+Non-forum messages, absent forum metadata, cross-chat quotes, story/scheduled
+replies and inconclusive headers use `null`; a completely missing peer record
+still surfaces the provider error. Terminal output adds `[topic:<id>]` only when
+known. Mapping performs no additional history scans or topic-name requests.
 
 `text` stays unchanged. `links` contains visible (`url`) and hidden (`text_link`)
 URL entities from text or captions, or `[]` when none are present. Each entry has
@@ -246,7 +264,7 @@ done
 ### Read a forum topic
 
 ```bash
-tg topics -1001234567890          # find topic ID
+tg topics --limit 100 -- -1001234567890  # find topic ID and current name
 tg messages --topic 42 -n 20 -- -1001234567890
 ```
 

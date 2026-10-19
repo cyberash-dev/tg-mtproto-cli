@@ -65,7 +65,8 @@ export function formatMessagesText(messages: Message[]): string {
 
   return messages
     .map((msg) => {
-      const header = `${chalk.dim(`[${formatDate(msg.date)}]`)} ${chalk.cyan(`#${msg.id}`)} ${chalk.bold(msg.senderName)}:`;
+      const topic = msg.topicId === null ? "" : `${chalk.dim(`[topic:${msg.topicId}]`)} `;
+      const header = `${chalk.dim(`[${formatDate(msg.date)}]`)} ${chalk.cyan(`#${msg.id}`)} ${topic}${chalk.bold(msg.senderName)}:`;
       const lines: string[] = [header];
 
       if (msg.text) {

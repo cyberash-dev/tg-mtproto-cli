@@ -22,10 +22,10 @@ tg chats [--type <type>] [--limit <n>] [--offset <n>]
 Таблица чатов:
 
 ```
-  #  Chat ID          Type         Title                    Unread  Last Activity
-  1  123456789        private      Иван Иванов              3       5 min ago
-  2  -1001234567890   supergroup   Рабочий чат              12      1 hour ago
-  3  -1001987654321   channel      Новости                  —       2 hours ago
+  #  Chat ID          Type         Forum  Title                    Unread  Last Activity
+  1  123456789        private      no     Иван Иванов              3       5 min ago
+  2  -1001234567890   supergroup   yes    Рабочий чат              12      1 hour ago
+  3  -1001987654321   channel      no     Новости                  —       2 hours ago
 ```
 
 В JSON-режиме (`--json`):
@@ -35,6 +35,7 @@ tg chats [--type <type>] [--limit <n>] [--offset <n>]
   {
     "id": -1001234567890,
     "type": "supergroup",
+    "isForum": true,
     "title": "Рабочий чат",
     "username": "workchat",
     "unreadCount": 12,

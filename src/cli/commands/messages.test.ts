@@ -83,6 +83,7 @@ test("messages --json prints preserved links without progress through the real u
           date: new Date(1_770_000_000_000).toISOString(),
           media: null,
           replyToId: null,
+          topicId: null,
           isOutgoing: false,
         },
       ],

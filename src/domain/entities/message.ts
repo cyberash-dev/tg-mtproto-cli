@@ -10,5 +10,6 @@ export type Message = {
   readonly date: Date;
   readonly media: Media | null;
   readonly replyToId: number | null;
+  readonly topicId: number | null;
   readonly isOutgoing: boolean;
 };

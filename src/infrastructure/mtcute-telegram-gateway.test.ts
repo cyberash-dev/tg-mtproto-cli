@@ -66,6 +66,7 @@ test("visible URL entities retain their exact target in JSON", async (context) =
       date: new Date(1_770_000_000_000).toISOString(),
       media: null,
       replyToId: null,
+      topicId: null,
       isOutgoing: false,
     },
   ]);
@@ -202,6 +203,7 @@ for (const route of [
         date: new Date(1_769_999_999_000).toISOString(),
         media: null,
         replyToId: null,
+        topicId: null,
         isOutgoing: false,
       },
       {
@@ -213,6 +215,7 @@ for (const route of [
         date: new Date(1_770_000_000_000).toISOString(),
         media: { type: "document", fileName: "runbook.pdf", mimeType: "application/pdf", size: 2048 },
         replyToId: 41,
+        topicId: null,
         isOutgoing: true,
       },
     ]);

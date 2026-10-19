@@ -101,6 +101,18 @@ function mapMedia(raw: MessageMedia): Media | null {
   return { type: mediaType, fileName, mimeType, size };
 }
 
+function messageTopicId(message: MtcuteMessage): number | null {
+  const chat = message.chat;
+  if (chat.type !== "chat" || chat.chatType !== "supergroup" || !chat.isForum) return null;
+  const reply = message.replyToMessage;
+  const replyPeer = reply?.raw.replyToPeerId;
+  if (replyPeer && (replyPeer._ !== "peerChannel" || replyPeer.channelId !== chat.raw.id)) return null;
+  if (reply?.raw.replyFrom || reply?.isScheduled || message.replyToStory) return null;
+  if (message.raw._ === "messageService" && message.raw.action._ === "messageActionTopicCreate") return message.id;
+  if (message.isTopicMessage) return reply?.threadId ?? null;
+  return message.isService ? null : 1;
+}
+
 function messageFromMtcute(message: MtcuteMessage): Message {
   return {
     id: message.id,
@@ -111,6 +123,7 @@ function messageFromMtcute(message: MtcuteMessage): Message {
     date: message.date,
     media: mapMedia(message.media),
     replyToId: message.replyToMessage?.id ?? null,
+    topicId: messageTopicId(message),
     isOutgoing: message.isOutgoing,
   };
 }
@@ -143,19 +156,17 @@ function parseChatId(chatId: string | number): string | number {
   return Number.isFinite(num) ? num : chatId;
 }
 
-function mapPeerChatType(peer: { readonly type: string }): ChatType {
-  switch (peer.type) {
-    case "user":
-    case "bot":
-      return "private";
+function mapPeerChatType(peer: MtcuteMessage["chat"]): ChatType {
+  if (peer.type !== "chat") return "private";
+  switch (peer.chatType) {
     case "group":
       return "group";
     case "supergroup":
+    case "gigagroup":
+    case "monoforum":
       return "supergroup";
     case "channel":
       return "channel";
-    default:
-      return "private";
   }
 }
 
@@ -235,6 +246,7 @@ export class MtcuteTelegramGateway implements TelegramGateway {
       chats.push({
         id: peer.id,
         type: chatType,
+        isForum: peer.type === "chat" && Boolean(peer.isForum),
         title: peer.displayName,
         username: "username" in peer ? (peer.username ?? null) : null,
         unreadCount: dialog.unreadCount,
