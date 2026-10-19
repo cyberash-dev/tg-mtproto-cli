@@ -40,6 +40,8 @@ CLI tool for reading Telegram data directly via MTProto protocol. No Bot API, no
 
 ## Required binaries
 
+Requires Node.js 20.19.0 or newer.
+
 | Binary | Install | Purpose |
 |---|---|---|
 | `tg` | `npm install -g tg-mtproto-cli` | Core CLI |

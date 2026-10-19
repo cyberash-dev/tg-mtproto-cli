@@ -17,6 +17,8 @@ CLI for Telegram via MTProto. Direct access to chats, messages and media — no 
 
 ## Prerequisites
 
+Node.js 20.19.0 or newer is required.
+
 You need Telegram API credentials (`api_id` and `api_hash`).
 Get them at [my.telegram.org](https://my.telegram.org/apps).
 
