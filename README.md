@@ -106,8 +106,18 @@ animated MP4s. Only one category is supported (`photo-video` is a predefined
 combination). There is no global search, filename/MIME/domain filter, automatic
 download or link traversal. GIF/video-note JSON metadata uses `animation` and
 `video_note`. Search results keep the existing message shape and preserved link data.
-Errors remain text on stderr even with `--json`, despite the older JSON-error
-specification. Successful JSON contains only the result array.
+With `--json`, argument and command failures emit one JSON object on stderr:
+`{"error":"message","code":1}`. The numeric `code` matches the process exit code,
+including existing authentication failures that exit 2. Errors contain no terminal
+color codes. Successful message JSON still contains only the result array.
+
+Capture results and errors separately in scripts (this invalid filter needs no account or network):
+
+```bash
+tg --json messages @example --filter invalid >messages.json 2>error.json
+tg_exit_code=$?
+jq . error.json
+```
 
 Hidden links appear as `label (URL)` in terminal output. JSON preserves the original
 `text` and includes a `links` array for visible URLs and hidden destinations, including
@@ -123,6 +133,11 @@ tg messages @username --filter url -n 20 --json | jq -r '.[].links[].url'
 |---|---|
 | `--account <alias>` | Use a specific account |
 | `--json` | Output in JSON format |
+| `--version` | Show the installed package version from `package.json` |
+
+`--help` and `--version` print text even with `--json`. Interactive authentication
+prompts and account-management success messages also remain text. The package
+version identifies a release; it does not identify local Git changes.
 
 ## How it works
 

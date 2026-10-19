@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { Presets, SingleBar } from "cli-progress";
 import type { Command } from "commander";
 import type { DownloadMediaUseCase } from "../../use-cases/download-media.js";
+import { exitWithError } from "../errors.js";
 
 export function registerDownloadCommand(program: Command, downloadMediaUseCase: DownloadMediaUseCase) {
   program
@@ -48,8 +49,7 @@ export function registerDownloadCommand(program: Command, downloadMediaUseCase: 
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error(chalk.red(message));
-        process.exit(message.includes("No default") || message.includes("expired") ? 2 : 1);
+        exitWithError(program, message, message.includes("No default") || message.includes("expired") ? 2 : 1);
       }
     });
 }

@@ -170,12 +170,17 @@ tg default <alias>               # set default
 |---|---|
 | `--account <alias>` | Use specific account instead of default |
 | `--json` | JSON output (for scripting/piping) |
+| `--version` | Installed package version from `package.json` (not a Git revision) |
 
 ## JSON output
 
-All commands support `--json` for structured output. Dates are ISO 8601.
-For `messages`, errors remain text on stderr even in JSON mode; this differs
-from the older JSON-error specification. Progress never enters JSON stdout.
+Listings and downloads support `--json` for structured results. Dates are ISO 8601.
+Argument and command failures emit one JSON object on stderr, for example
+`{"error":"message","code":1}`. The numeric code matches the existing process exit
+code (1 or 2), and error text contains no terminal color codes. Capture stderr
+separately from successful JSON stdout; progress is disabled in JSON mode.
+Explicit help/version, interactive authentication prompts, and account-management
+success messages remain text.
 
 ```bash
 tg chats --json

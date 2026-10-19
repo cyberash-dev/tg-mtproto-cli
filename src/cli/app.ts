@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, type HelpContext } from "commander";
 import type { AccountsListUseCase } from "../use-cases/accounts-list.js";
 import type { AccountsRenameUseCase } from "../use-cases/accounts-rename.js";
 import type { AuthUseCase } from "../use-cases/auth.js";
@@ -8,6 +8,7 @@ import type { LogoutUseCase } from "../use-cases/logout.js";
 import type { MessagesListUseCase } from "../use-cases/messages-list.js";
 import type { SetDefaultAccountUseCase } from "../use-cases/set-default-account.js";
 import type { TopicsListUseCase } from "../use-cases/topics-list.js";
+import { version } from "../version.js";
 import { registerAccountsCommand } from "./commands/accounts.js";
 import { registerAuthCommand } from "./commands/auth.js";
 import { registerChatsCommand } from "./commands/chats.js";
@@ -16,6 +17,7 @@ import { registerDownloadCommand } from "./commands/download.js";
 import { registerLogoutCommand } from "./commands/logout.js";
 import { registerMessagesCommand } from "./commands/messages.js";
 import { registerTopicsCommand } from "./commands/topics.js";
+import { errorJson } from "./errors.js";
 
 export type UseCases = {
   auth: AuthUseCase;
@@ -35,9 +37,21 @@ export function createApp(useCases: UseCases): Command {
   program
     .name("tg")
     .description("CLI for Telegram via MTProto")
-    .version("0.1.0")
+    .version(version)
     .option("--account <alias>", "Use a specific account instead of default")
     .option("--json", "Output in JSON format");
+
+  program.configureOutput({
+    outputError: (message, write) => {
+      write(program.opts<{ json?: boolean }>().json ? `${errorJson(message.trimEnd(), 1)}\n` : message);
+    },
+  });
+  program.on("beforeHelp", ({ error }: HelpContext) => {
+    if (error && program.opts<{ json?: boolean }>().json) {
+      const helpTarget = program.args[1];
+      program.error(helpTarget ? `error: unknown command '${helpTarget}'` : "error: missing required command");
+    }
+  });
 
   registerAuthCommand(program, useCases.auth);
   registerLogoutCommand(program, useCases.logout);

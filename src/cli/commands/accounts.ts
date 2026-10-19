@@ -2,6 +2,7 @@ import chalk from "chalk";
 import type { Command } from "commander";
 import type { AccountsListUseCase } from "../../use-cases/accounts-list.js";
 import type { AccountsRenameUseCase } from "../../use-cases/accounts-rename.js";
+import { exitWithError } from "../errors.js";
 import { formatAccountsJson, formatAccountsTable } from "../formatters/account-formatter.js";
 
 export function registerAccountsCommand(
@@ -21,8 +22,7 @@ export function registerAccountsCommand(
         console.log(json ? formatAccountsJson(accounts) : formatAccountsTable(accounts));
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error(chalk.red(message));
-        process.exit(1);
+        exitWithError(program, message, 1);
       }
     });
 
@@ -35,8 +35,7 @@ export function registerAccountsCommand(
         console.log(chalk.green(`Account alias renamed: "${oldAlias}" -> "${newAlias}"`));
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error(chalk.red(message));
-        process.exit(1);
+        exitWithError(program, message, 1);
       }
     });
 }

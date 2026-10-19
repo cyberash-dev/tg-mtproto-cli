@@ -1,8 +1,8 @@
-import chalk from "chalk";
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { type MessageFilter, messageFilters } from "../../domain/entities/message-filter.js";
 import type { MessagesListUseCase } from "../../use-cases/messages-list.js";
 import { dateArgument } from "../date-argument.js";
+import { exitWithError } from "../errors.js";
 import { formatMessagesJson, formatMessagesText } from "../formatters/message-formatter.js";
 
 function integerArgument(argument: string, label: string, minimum: number, maximum: number): number {
@@ -85,8 +85,7 @@ export function registerMessagesCommand(program: Command, messagesListUseCase: M
           console.log(json ? formatMessagesJson(messages) : formatMessagesText(messages));
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
-          console.error(chalk.red(message));
-          process.exit(message.includes("No default") || message.includes("expired") ? 2 : 1);
+          exitWithError(program, message, message.includes("No default") || message.includes("expired") ? 2 : 1);
         }
       },
     );
