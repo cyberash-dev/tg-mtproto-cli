@@ -101,7 +101,9 @@ tg chats [--type private|group|supergroup|channel] [--limit 50] [--offset 0]
 
 Chat JSON exposes `isForum`; readable tables have a `Forum` column. Groups and
 channels retain their correct type. Gigagroups and monoforums map to the existing
-`supergroup` category; this does not add monoforum topic support.
+`supergroup` category: Telegram defines a monoforum as a special supergroup for
+channel DMs. Its conversations use `saved_peer_id`; this does not add monoforum
+topic support.
 
 ### Read messages
 

@@ -133,7 +133,10 @@ tg messages @username --filter url -n 20 --json | jq -r '.[].links[].url'
 
 Chat JSON includes `isForum`; the chat table has a `Forum` column. Group/channel
 classification uses Telegram's chat subtype. Gigagroups and monoforums use the
-existing `supergroup` category; monoforum topic semantics are not supported.
+existing `supergroup` category. Telegram defines a monoforum as a
+[special supergroup for channel DMs](https://core.telegram.org/api/monoforum),
+whose conversations use `saved_peer_id` rather than forum-thread IDs.
+Monoforum topic semantics are not supported.
 
 Message JSON includes `topicId`, separate from `replyToId`. Readable output adds
 `[topic:42]` when the topic is known. In a confirmed supergroup forum, ordinary

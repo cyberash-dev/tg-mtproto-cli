@@ -27,5 +27,8 @@
 Пользователи и боты отображаются как `private`; для mtcute Chat используется
 `chatType`, а не общий `type = "chat"`. Варианты `gigagroup` и `monoforum`
 отображаются как `supergroup`, без расширения доменного перечня типов.
+Для `monoforum` это намеренная нормализация: Telegram описывает личные сообщения
+каналу как [специальную супергруппу](https://core.telegram.org/api/monoforum).
+Её диалоги разделяются по `saved_peer_id`, а не по forum-thread ID.
 Это не добавляет поддержку топиков monoforum. В таблице `Forum` выводит `yes`/`no`,
 JSON всегда содержит boolean `isForum`.
