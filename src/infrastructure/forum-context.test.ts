@@ -173,7 +173,7 @@ for (const [name, action, replyTo, expectedTopic] of [
   });
 }
 
-for (const [name, replyTo] of [
+for (const [name, replyTo, expectedTopic] of [
   [
     "cross-chat topic quote",
     {
@@ -183,10 +183,12 @@ for (const [name, replyTo] of [
       replyToTopId: 80,
       replyToPeerId: { _: "peerChannel", channelId: 999 },
     },
+    80,
   ],
   [
     "cross-chat quote without topic header",
     { _: "messageReplyHeader", replyToMsgId: 90, replyToPeerId: { _: "peerChannel", channelId: 999 } },
+    1,
   ],
   [
     "private-origin quote",
@@ -195,19 +197,30 @@ for (const [name, replyTo] of [
       replyFrom: { _: "messageFwdHeader", date: 1_770_000_000, fromName: "Unknown" },
       quoteText: "Quote",
     },
+    null,
   ],
-  ["story reply", { _: "messageReplyStoryHeader", peer: { _: "peerUser", userId: 999 }, storyId: 9 }],
-  ["scheduled reply", { _: "messageReplyHeader", replyToScheduled: true, replyToMsgId: 90 }],
-  ["topic header without IDs", { _: "messageReplyHeader", forumTopic: true }],
-] satisfies ReadonlyArray<readonly [string, tl.TypeMessageReplyHeader]>) {
-  test(`${name} does not invent a local forum topic`, async (context) => {
+  ["story reply", { _: "messageReplyStoryHeader", peer: { _: "peerUser", userId: 999 }, storyId: 9 }, null],
+  ["scheduled reply", { _: "messageReplyHeader", replyToScheduled: true, replyToMsgId: 90 }, null],
+  [
+    "scheduled cross-chat reply",
+    {
+      _: "messageReplyHeader",
+      replyToScheduled: true,
+      replyToMsgId: 90,
+      replyToPeerId: { _: "peerChannel", channelId: 999 },
+    },
+    null,
+  ],
+  ["topic header without IDs", { _: "messageReplyHeader", forumTopic: true }, null],
+] satisfies ReadonlyArray<readonly [string, tl.TypeMessageReplyHeader, number | null]>) {
+  test(`${name} preserves only the local forum topic`, async (context) => {
     const message = forumMessage({ replyTo });
     context.mock.method(TelegramClient.prototype, "getHistory", async () => [message]);
     const gateway = new MtcuteTelegramGateway({ apiId: 1, apiHash: "synthetic", sessionPath: ":memory:" });
 
     const messages = await gateway.getMessages({ chatId: -1000000000123, limit: 1, all: false });
 
-    assert.equal(messages[0].topicId, null);
+    assert.equal(messages[0].topicId, expectedTopic);
   });
 }
 

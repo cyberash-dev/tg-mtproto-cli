@@ -106,9 +106,12 @@ function messageTopicId(message: MtcuteMessage): number | null {
   const chat = message.chat;
   if (chat.type !== "chat" || chat.chatType !== "supergroup" || !chat.isForum) return null;
   const reply = message.replyToMessage;
+  if (reply?.isScheduled || message.replyToStory) return null;
   const replyPeer = reply?.raw.replyToPeerId;
-  if (replyPeer && (replyPeer._ !== "peerChannel" || replyPeer.channelId !== chat.raw.id)) return null;
-  if (reply?.raw.replyFrom || reply?.isScheduled || message.replyToStory) return null;
+  if (replyPeer && (replyPeer._ !== "peerChannel" || replyPeer.channelId !== chat.raw.id)) {
+    return reply.raw.replyToTopId ?? 1;
+  }
+  if (reply?.raw.replyFrom) return null;
   if (message.raw._ === "messageService" && message.raw.action._ === "messageActionTopicCreate") return message.id;
   if (message.isTopicMessage) return reply?.threadId ?? null;
   return message.isService ? null : 1;

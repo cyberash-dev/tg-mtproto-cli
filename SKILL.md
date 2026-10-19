@@ -219,8 +219,10 @@ tg download @chat 42 --json
 In a confirmed supergroup forum, ordinary General messages/replies use ID 1,
 non-General roots/replies use the topic root, and topic-creation service messages
 use their own ID. Other service messages require an explicit topic header.
-Non-forum messages, absent forum metadata, cross-chat quotes, story/scheduled
-replies and inconclusive headers use `null`; a completely missing peer record
+Cross-chat quotes with a foreign `replyToPeerId` use the local `replyToTopId`,
+or General (1) when absent, never the foreign `replyToMsgId`.
+Non-forum messages, absent forum metadata, hidden quote sources without a peer,
+story/scheduled replies and inconclusive headers use `null`; a completely missing peer record
 still surfaces the provider error. Terminal output adds `[topic:<id>]` only when
 known. Mapping performs no additional history scans or topic-name requests.
 

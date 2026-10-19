@@ -139,9 +139,11 @@ Message JSON includes `topicId`, separate from `replyToId`. Readable output adds
 `[topic:42]` when the topic is known. In a confirmed supergroup forum, ordinary
 General messages and replies have `topicId: 1`; other topics use the topic root
 ID, including nested replies. Topic-creation service messages use their own ID.
-Other service messages need an explicit topic header. Non-forum messages and
-inconclusive metadata have `topicId: null`, including cross-chat quotes, story
-and scheduled replies. Missing forum flags are not inferred; a missing peer
+Other service messages need an explicit topic header. Cross-chat quotes with a
+foreign `replyToPeerId` keep the local `replyToTopId`, or General (1) when absent;
+the foreign `replyToMsgId` is never used as a local topic ID. Non-forum messages,
+hidden quote sources without a peer, story/scheduled replies and inconclusive
+headers have `topicId: null`. Missing forum flags are not inferred; a missing peer
 record still surfaces the provider error. No extra history or topic requests
 are made while mapping messages.
 
