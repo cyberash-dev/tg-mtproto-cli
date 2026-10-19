@@ -827,3 +827,74 @@ for (const options of [[], ["--filter", "url"]]) {
     assert.deepEqual(messageIds(output.stdout), []);
   });
 }
+
+test("integrated filters retain forum topic IDs and hidden links", async (context) => {
+  const command = commandHarness(context);
+  const message = new TelegramMessage(
+    {
+      _: "message",
+      id: 51,
+      peerId: { _: "peerChannel", channelId: 123 },
+      fromId: { _: "peerUser", userId: 456 },
+      date: 1_770_000_000,
+      out: false,
+      message: "Read docs",
+      entities: [{ _: "messageEntityTextUrl", offset: 5, length: 4, url: "https://example.com/docs" }],
+      replyTo: { _: "messageReplyHeader", forumTopic: true, replyToMsgId: 50, replyToTopId: 42 },
+    },
+    PeersIndex.from({
+      users: [{ _: "user", id: 456, firstName: "Alice" }],
+      chats: [
+        {
+          _: "channel",
+          id: 123,
+          accessHash: Long.ONE,
+          title: "Forum",
+          photo: { _: "chatPhotoEmpty" },
+          date: 0,
+          megagroup: true,
+          forum: true,
+        },
+      ],
+    }),
+  );
+  const search = context.mock.method(TelegramClient.prototype, "searchMessages", async () => [message]);
+
+  const output = await command.run([
+    "--json",
+    "messages",
+    "--filter",
+    "url",
+    "--query",
+    "docs",
+    "--from",
+    "456",
+    "--topic",
+    "42",
+    "--after",
+    "2026-02-01",
+    "--before",
+    "2026-02-03",
+    "-n",
+    "1",
+    "--",
+    "-1000000000123",
+  ]);
+
+  assert.equal(output.exitCode, 0, output.stderr);
+  assert.deepEqual(JSON.parse(output.stdout), [
+    {
+      id: 51,
+      chatId: -1000000000123,
+      senderName: "Alice",
+      text: "Read docs",
+      links: [{ kind: "text_link", offset: 5, length: 4, text: "docs", url: "https://example.com/docs" }],
+      date: new Date(1_770_000_000_000).toISOString(),
+      media: null,
+      replyToId: 50,
+      topicId: 42,
+      isOutgoing: false,
+    },
+  ]);
+  assert.equal(search.mock.callCount(), 1);
+});
