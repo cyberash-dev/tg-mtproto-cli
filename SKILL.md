@@ -126,6 +126,9 @@ A chat is mandatory. All options combine; N counts matches after all filters,
 printed oldest-to-newest. Pages are bounded to 100 and stop at N, exhaustion or
 the lower date bound; duplicates are skipped and a repeated cursor is an error.
 `--all` is intentionally unbounded within the chosen scope and stores results in memory.
+Without either date bound it prints a text warning on stderr, including in JSON
+mode. Filters and queries do not cap the result count; add dates or omit `--all`
+to use `-n`.
 
 Both date flags accept `2026-02-22` (midnight UTC, unchanged),
 `2026-02-22T10:00` / `"2026-02-22 10:00"` (local time), and `10:00` (today, local

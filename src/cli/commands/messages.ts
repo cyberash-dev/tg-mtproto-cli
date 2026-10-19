@@ -65,6 +65,12 @@ export function registerMessagesCommand(program: Command, messagesListUseCase: M
           const after = opts.after === undefined ? undefined : dateArgument(opts.after);
           const before = opts.before === undefined ? undefined : dateArgument(opts.before);
           if (after && before && after >= before) throw new RangeError("--after must be earlier than --before");
+          if (opts.all && !after && !before) {
+            process.stderr.write(
+              "Warning: --all without date bounds loads all matching messages into memory. " +
+                "Add --after/--before or omit --all to use -n.\n",
+            );
+          }
 
           const messages = await messagesListUseCase.execute({
             alias: account,

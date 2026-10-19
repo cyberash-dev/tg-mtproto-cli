@@ -12,7 +12,7 @@ function unexpectedStorageAccess(): never {
   throw new Error("Unexpected storage access");
 }
 
-test("messages --json prints preserved links without progress through the real use case", async (context) => {
+test("messages --json preserves links with warnings confined to stderr", async (context) => {
   const credentialStorage: CredentialStorage = {
     getDefaultAccount: async () => ({
       id: 123,
@@ -87,7 +87,10 @@ test("messages --json prints preserved links without progress through the real u
           isOutgoing: false,
         },
       ],
-      stderr: [],
+      stderr: [
+        "Warning: --all without date bounds loads all matching messages into memory. " +
+          "Add --after/--before or omit --all to use -n.\n",
+      ],
     },
   );
 });

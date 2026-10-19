@@ -547,7 +547,7 @@ for (const count of ["0", "1"]) {
       search.mock.calls.map((call) => call.arguments[0]?.limit),
       [100, 100, 100],
     );
-    assert.equal(output.stderr, "");
+    assert.match(output.stderr, /^Warning: --all without date bounds loads all matching messages into memory\./);
   });
 }
 

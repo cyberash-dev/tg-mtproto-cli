@@ -81,7 +81,9 @@ Results are the latest N matches, printed oldest-to-newest. Search and history
 pages contain at most 100 messages; short pages continue using Telegram's cursor.
 Duplicate records are omitted. Retrieval stops at N matches, exhaustion or the
 lower date bound; a non-advancing cursor fails rather than returning partial JSON.
-`--all` can still load a large selected history into memory.
+`--all` can still load a large selected history into memory. Without either date
+bound, it prints a text warning on stderr, including in JSON mode. Filters and
+queries do not cap the number of matches; add dates or omit `--all` to use `-n`.
 
 Both date flags accept `2026-02-22` (midnight **UTC**, unchanged),
 `2026-02-22T10:00` or `"2026-02-22 10:00"` (system local time), and `10:00`
