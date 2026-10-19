@@ -121,7 +121,9 @@ jq . error.json
 
 Hidden links appear as `label (URL)` in terminal output. JSON preserves the original
 `text` and includes a `links` array for visible URLs and hidden destinations, including
-media captions. Extract destinations from the latest 20 link-bearing messages with:
+media captions. Malformed link ranges are skipped with a text warning on stderr,
+including in JSON mode; messages and valid links remain in the result.
+Extract destinations from the latest 20 link-bearing messages with:
 
 ```bash
 tg messages @username --filter url -n 20 --json | jq -r '.[].links[].url'

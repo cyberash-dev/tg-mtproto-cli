@@ -35,7 +35,8 @@ function messageLinks(message: MtcuteMessage): MessageLink[] {
       length <= 0 ||
       offset + length > message.text.length
     ) {
-      throw new RangeError(`Invalid link entity range in message #${message.id}: offset=${offset}, length=${length}`);
+      console.warn(`Skipping invalid link entity: messageId=${message.id} offset=${offset} length=${length}`);
+      return [];
     }
     return [
       {

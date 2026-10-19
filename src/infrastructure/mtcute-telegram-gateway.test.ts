@@ -83,17 +83,29 @@ for (const [offset, length] of [
   [NaN, 7],
   [0, Infinity],
 ]) {
-  test(`invalid link range ${offset}:${length} is rejected`, async (context) => {
+  test(`invalid link range ${offset}:${length} is skipped without losing the message`, async (context) => {
     const message = telegramMessage({
-      entities: [{ _: "messageEntityTextUrl", offset, length, url: "https://example.com/runbook" }],
+      entities: [
+        { _: "messageEntityTextUrl", offset, length, url: "https://example.com/broken" },
+        { _: "messageEntityTextUrl", offset: 8, length: 7, url: "https://example.com/runbook" },
+      ],
     });
     context.mock.method(TelegramClient.prototype, "getHistory", async () => [message]);
+    const warning = context.mock.method(console, "warn", () => {});
     const gateway = new MtcuteTelegramGateway({ apiId: 1, apiHash: "synthetic", sessionPath: ":memory:" });
 
-    await assert.rejects(gateway.getMessages({ chatId: 123, limit: 1, all: false }), {
-      name: "RangeError",
-      message: `Invalid link entity range in message #42: offset=${offset}, length=${length}`,
+    await assert.doesNotReject(async () => {
+      const messages = await gateway.getMessages({ chatId: 123, limit: 1, all: false });
+
+      assert.equal(messages[0].text, "See the runbook");
+      assert.deepEqual(messages[0].links, [
+        { kind: "text_link", offset: 8, length: 7, text: "runbook", url: "https://example.com/runbook" },
+      ]);
     });
+    assert.deepEqual(
+      warning.mock.calls.map((call) => call.arguments),
+      [[`Skipping invalid link entity: messageId=42 offset=${offset} length=${length}`]],
+    );
   });
 }
 

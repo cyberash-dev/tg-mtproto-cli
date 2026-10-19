@@ -228,7 +228,9 @@ known. Mapping performs no additional history scans or topic-name requests.
 URL entities from text or captions, or `[]` when none are present. Each entry has
 `kind`, UTF-16 `offset` and `length`, the label `text`, and the exact `url` target.
 Repeated occurrences are retained. Other formatting entities are omitted.
-Invalid link ranges fail with `Invalid link entity range in message #<id>: offset=<offset>, length=<length>`.
+Invalid link ranges are skipped with a text warning on stderr, also in JSON mode:
+`Skipping invalid link entity: messageId=<id> offset=<offset> length=<length>`.
+The original message and valid links remain available; stdout stays JSON-only.
 Terminal output adds hidden destinations in parentheses unless the label already
 equals the URL; control characters in appended destinations are escaped.
 Displaying a destination does not open it.
