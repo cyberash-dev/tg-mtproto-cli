@@ -171,7 +171,8 @@ are fabricated or looked up per message.
 
 `--help` and `--version` print text even with `--json`. Interactive authentication
 prompts and account-management success messages also remain text. The package
-version identifies a release; it does not identify local Git changes.
+version is embedded from `package.json` at build time and identifies a release;
+it does not identify local Git changes.
 
 ## How it works
 
