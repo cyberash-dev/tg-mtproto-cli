@@ -13,11 +13,11 @@
     "build": "tsdown",
     "dev": "tsdown --watch",
     "start": "node dist/main.mjs",
-    "test": "tsx --test src/infrastructure/mtcute-telegram-gateway.test.ts src/cli/commands/messages.test.ts src/cli/commands/messages-search.test.ts src/cli/app.test.ts src/infrastructure/forum-context.test.ts src/cli/commands/forum-context.test.ts",
+    "test": "node scripts/test.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check src",
-    "lint:fix": "biome check --write src",
-    "format": "biome format --write src",
+    "lint": "biome check src scripts",
+    "lint:fix": "biome check --write src scripts",
+    "format": "biome format --write src scripts",
     "prepublishOnly": "npm run lint && npm run build"
   },
   "keywords": [
