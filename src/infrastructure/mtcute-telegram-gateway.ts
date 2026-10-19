@@ -1,4 +1,4 @@
-import { type Message as MtcuteMessage, SearchFilters, TelegramClient, type tl } from "@mtcute/node";
+import { getMarkedPeerId, type Message as MtcuteMessage, SearchFilters, TelegramClient, type tl } from "@mtcute/node";
 import { encodeQR } from "qr";
 import type { Account } from "../domain/entities/account.js";
 import type { Chat, ChatType } from "../domain/entities/chat.js";
@@ -103,6 +103,7 @@ function mapMedia(raw: MessageMedia): Media | null {
 }
 
 function messageTopicId(message: MtcuteMessage): number | null {
+  if (!message._peers.has(message.raw.peerId)) return null;
   const chat = message.chat;
   if (chat.type !== "chat" || chat.chatType !== "supergroup" || !chat.isForum) return null;
   const reply = message.replyToMessage;
@@ -118,10 +119,11 @@ function messageTopicId(message: MtcuteMessage): number | null {
 }
 
 function messageFromMtcute(message: MtcuteMessage): Message {
+  const senderPeer = message.raw.fromId ?? message.raw.peerId;
   return {
     id: message.id,
-    chatId: message.chat.id,
-    senderName: message.sender.displayName,
+    chatId: getMarkedPeerId(message.raw.peerId),
+    senderName: message._peers.has(senderPeer) ? message.sender.displayName : String(getMarkedPeerId(senderPeer)),
     text: message.text || null,
     links: messageLinks(message),
     date: message.date,

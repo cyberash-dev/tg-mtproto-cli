@@ -5,7 +5,6 @@ import {
   Dialog,
   ForumTopic,
   Long,
-  MtArgumentError,
   PeersIndex,
   TelegramClient,
   Message as TelegramMessage,
@@ -16,29 +15,62 @@ import { formatMessagesText } from "../cli/formatters/message-formatter.js";
 import type { ChatType } from "../domain/entities/chat.js";
 import { MtcuteTelegramGateway } from "./mtcute-telegram-gateway.js";
 
-test("missing chat metadata preserves the provider error instead of inventing a topic", async (context) => {
-  const message = new TelegramMessage(
-    {
-      _: "message",
-      id: 51,
-      peerId: { _: "peerChannel", channelId: 123 },
-      date: 1_770_000_000,
-      message: "Missing peer",
-    },
-    PeersIndex.from({}),
-  );
-  context.mock.method(TelegramClient.prototype, "getHistory", async () => [message]);
-  const gateway = new MtcuteTelegramGateway({ apiId: 1, apiHash: "synthetic", sessionPath: ":memory:" });
-
-  await assert.rejects(gateway.getMessages({ chatId: -1000000000123, limit: 1, all: false }), (error: unknown) => {
-    assert.ok(error instanceof MtArgumentError);
-    assert.equal(
-      error.message,
-      "Given peer is not available in this index. This is most likely an internal library error.",
+for (const [peerId, chatId] of [
+  [{ _: "peerChannel", channelId: 123 }, -1000000000123],
+  [{ _: "peerChat", chatId: 123 }, -123],
+] satisfies ReadonlyArray<readonly [tl.TypePeer, number]>) {
+  test(`missing ${peerId._} metadata preserves messages without inventing a topic`, async (context) => {
+    const message = new TelegramMessage(
+      {
+        _: "message",
+        id: 51,
+        peerId,
+        fromId: { _: "peerUser", userId: 456 },
+        date: 1_770_000_000,
+        message: "Missing peer",
+      },
+      PeersIndex.from({ users: [{ _: "user", id: 456, firstName: "Alice" }] }),
     );
-    return true;
+    context.mock.method(TelegramClient.prototype, "getHistory", async () => [message]);
+    const gateway = new MtcuteTelegramGateway({ apiId: 1, apiHash: "synthetic", sessionPath: ":memory:" });
+
+    await assert.doesNotReject(async () => {
+      const messages = await gateway.getMessages({ chatId, limit: 1, all: false });
+
+      assert.deepEqual(
+        messages.map(({ chatId, senderName, text, topicId }) => ({ chatId, senderName, text, topicId })),
+        [{ chatId, senderName: "Alice", text: "Missing peer", topicId: null }],
+      );
+    });
   });
-});
+}
+
+for (const [fromId, senderName] of [
+  [undefined, "-1000000000123"],
+  [{ _: "peerUser", userId: 456 }, "456"],
+] satisfies ReadonlyArray<readonly [tl.TypePeer | undefined, string]>) {
+  test(`missing sender metadata uses marked peer ID ${senderName}`, async (context) => {
+    const message = new TelegramMessage(
+      {
+        _: "message",
+        id: 51,
+        peerId: { _: "peerChannel", channelId: 123 },
+        fromId,
+        date: 1_770_000_000,
+        message: "Missing sender",
+      },
+      PeersIndex.from({}),
+    );
+    context.mock.method(TelegramClient.prototype, "getHistory", async () => [message]);
+    const gateway = new MtcuteTelegramGateway({ apiId: 1, apiHash: "synthetic", sessionPath: ":memory:" });
+
+    await assert.doesNotReject(async () => {
+      const messages = await gateway.getMessages({ chatId: -1000000000123, limit: 1, all: false });
+
+      assert.equal(messages[0].senderName, senderName);
+    });
+  });
+}
 
 test("topic listings join by chat and topic ID while unavailable titles leave message IDs intact", async (context) => {
   const knownTopic = new ForumTopic(

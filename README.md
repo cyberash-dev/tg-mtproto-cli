@@ -146,9 +146,10 @@ Other service messages need an explicit topic header. Cross-chat quotes with a
 foreign `replyToPeerId` keep the local `replyToTopId`, or General (1) when absent;
 the foreign `replyToMsgId` is never used as a local topic ID. Non-forum messages,
 hidden quote sources without a peer, story/scheduled replies and inconclusive
-headers have `topicId: null`. Missing forum flags are not inferred; a missing peer
-record still surfaces the provider error. No extra history or topic requests
-are made while mapping messages.
+headers have `topicId: null`. Missing chat metadata also gives `topicId: null`,
+while `chatId` is preserved from the message's raw peer ID. If sender metadata is
+missing, `senderName` contains the sender's numeric marked peer ID as a string.
+No extra history or topic requests are made while mapping messages.
 
 Get topic names separately, using the same chat:
 

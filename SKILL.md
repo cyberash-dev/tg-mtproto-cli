@@ -224,9 +224,11 @@ use their own ID. Other service messages require an explicit topic header.
 Cross-chat quotes with a foreign `replyToPeerId` use the local `replyToTopId`,
 or General (1) when absent, never the foreign `replyToMsgId`.
 Non-forum messages, absent forum metadata, hidden quote sources without a peer,
-story/scheduled replies and inconclusive headers use `null`; a completely missing peer record
-still surfaces the provider error. Terminal output adds `[topic:<id>]` only when
-known. Mapping performs no additional history scans or topic-name requests.
+story/scheduled replies and inconclusive headers use `null`. Missing chat metadata
+also gives `topicId: null`; `chatId` still comes from the raw peer ID. Missing sender
+metadata gives `senderName` the numeric marked peer ID as a string. Terminal output
+adds `[topic:<id>]` only when known. Mapping performs no additional history scans
+or topic-name requests.
 
 `text` stays unchanged. `links` contains visible (`url`) and hidden (`text_link`)
 URL entities from text or captions, or `[]` when none are present. Each entry has
